@@ -15,11 +15,19 @@ public partial class MainWindow : Window
     
     private static string RootPath
     {
-        get => ConfigurationManager.AppSettings["RootPath"]!;
+        get => ConfigurationManager.AppSettings["RootPath"] ?? string.Empty;
         set
         {
             var config = ConfigurationManager.OpenExeConfiguration(ConfigurationUserLevel.None);
-            config.AppSettings.Settings["RootPath"].Value = value;
+            var settings = config.AppSettings.Settings;
+            if (settings["RootPath"] == null)
+            {
+                settings.Add("RootPath", value);
+            }
+            else
+            {
+                settings["RootPath"].Value = value;
+            }
             config.Save(ConfigurationSaveMode.Modified);
             ConfigurationManager.RefreshSection("appSettings");
         }

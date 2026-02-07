@@ -1,6 +1,8 @@
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Text;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Threading;
@@ -90,12 +92,29 @@ public partial class MainWindow : Window
         {
             MessageBox.Show("Введите название файла.");
             return;
-        } 
+        }
+
+        if (string.IsNullOrWhiteSpace(RootPath))
+        {
+            MessageBox.Show("Пожалуйста, сначала установите корневую папку.");
+            return;
+        }
 
         var start = TrimStartTextBox.Text;
         var end = TrimEndTextBox.Text;
-        var inputPath = PreviewMediaPlayer.Source.LocalPath;
+        if (!TryGetPreviewInputPath(out var inputPath))
+        {
+            return;
+        }
+
+        if (!File.Exists(inputPath))
+        {
+            MessageBox.Show("Файл для обработки не найден.");
+            return;
+        }
+
         var processedPath = Path.Combine(RootPath, "TrackManager", "Processed");
+        Directory.CreateDirectory(processedPath);
         var outputPath = Path.Combine(processedPath, $"{fileName}.{_selectedFormat}");
 
         if (File.Exists(outputPath))
@@ -107,7 +126,16 @@ public partial class MainWindow : Window
         try
         {
             // Базовые параметры
-            var args = new StringBuilder($"-i \"{inputPath}\" -ss {start} -to {end}");
+            var args = new StringBuilder($"-y -i \"{inputPath}\"");
+            if (!string.IsNullOrWhiteSpace(start))
+            {
+                args.Append($" -ss {start}");
+            }
+
+            if (!string.IsNullOrWhiteSpace(end))
+            {
+                args.Append($" -to {end}");
+            }
 
             // Выбор кодеков в зависимости от формата
             string videoCodec;
@@ -131,23 +159,26 @@ public partial class MainWindow : Window
                     throw new InvalidOperationException("Неизвестный формат.");
             }
 
+            var videoFilters = new List<string>();
+
+            var videoCodecArgs = string.Empty;
+
             // Обработка VP9
             if (Vp9CheckBox.IsChecked == true)
             {
                 videoCodec = "libvpx-vp9";
-                args.Append($" -c:v {videoCodec} -crf {Vp9CrfTextBox.Text} -b:v 0");
+                videoCodecArgs = $"-c:v {videoCodec} -crf {Vp9CrfTextBox.Text} -b:v 0";
             }
             else
             {
-                args.Append($" -c:v {videoCodec}");
+                videoCodecArgs = $"-c:v {videoCodec}";
             }
 
             // 2-pass кодирование
-            if (TwoPassCheckBox.IsChecked == true)
+            var isTwoPass = TwoPassCheckBox.IsChecked == true;
+            if (isTwoPass)
             {
-                args.Append($" -b:v {TwoPassBitrateTextBox.Text} -pass 1 -f null NUL && " +
-                           $"ffmpeg -i \"{inputPath}\" -ss {start} -to {end} -c:v {videoCodec} " +
-                           $"-b:v {TwoPassBitrateTextBox.Text} -pass 2");
+                args.Append($" -b:v {TwoPassBitrateTextBox.Text}");
             }
 
             // Ускоренное кодирование
@@ -159,20 +190,21 @@ public partial class MainWindow : Window
             // Обрезка и изменение разрешения
             if (CropResizeCheckBox.IsChecked == true)
             {
-                args.Append($" -vf \"crop={CropTextBox.Text},scale={ScaleTextBox.Text}\"");
+                videoFilters.Add($"crop={CropTextBox.Text}");
+                videoFilters.Add($"scale={ScaleTextBox.Text}");
             }
 
             // Извлечение аудио в Opus
             if (ExtractOpusCheckBox.IsChecked == true)
             {
                 audioCodec = "libopus";
-                args.Append(" -c:a libopus -vn");
             }
 
             // Альфа-канал
             if (AlphaChannelCheckBox.IsChecked == true)
             {
-                args.Append(" -vf \"colorkey=0x000000:0.1:0.1,format=yuva420p\"");
+                videoFilters.Add("colorkey=0x000000:0.1:0.1");
+                videoFilters.Add("format=yuva420p");
             }
 
             // Изменение FPS
@@ -181,38 +213,73 @@ public partial class MainWindow : Window
                 args.Append($" -r {FpsTextBox.Text}");
             }
 
+            var removeAudio = RemoveAudioCheckBox.IsChecked == true;
+            var extractOpus = ExtractOpusCheckBox.IsChecked == true && !removeAudio;
+
+            if (extractOpus)
+            {
+                args.Append(" -vn");
+            }
+
+            if (!extractOpus && videoFilters.Count > 0)
+            {
+                args.Append($" -vf \"{string.Join(",", videoFilters)}\"");
+            }
+
             // Удаление аудио
-            if (RemoveAudioCheckBox.IsChecked == true)
+            if (removeAudio)
             {
                 args.Append(" -an");
+            }
+            else if (extractOpus)
+            {
+                args.Append($" -c:a {audioCodec}");
             }
             else
             {
                 args.Append($" -c:a {audioCodec}");
             }
 
-            args.Append($" \"{outputPath}\"");
+            var ffmpegArgs = args.ToString();
 
-            var process = new Process
+            if (!extractOpus)
             {
-                StartInfo = new ProcessStartInfo
+                ffmpegArgs += $" {videoCodecArgs}";
+            }
+
+            if (isTwoPass)
+            {
+                var pass1Args = $"{ffmpegArgs} -pass 1 -f null NUL";
+                var (pass1ExitCode, pass1Error) = await RunFfmpegAsync(pass1Args);
+                if (pass1ExitCode != 0)
                 {
-                    FileName = "ffmpeg",
-                    Arguments = args.ToString(),
-                    UseShellExecute = false,
-                    CreateNoWindow = true,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true
+                    MessageBox.Show($"Ошибка ffmpeg (pass 1):\n{pass1Error}", "Ошибка", MessageBoxButton.OK,
+                        MessageBoxImage.Error);
+                    return;
                 }
-            };
 
-            process.Start();
-            string errorOutput = await process.StandardError.ReadToEndAsync(); 
-            await process.WaitForExitAsync();
+                var pass2Args = $"{ffmpegArgs} -pass 2 \"{outputPath}\"";
+                var (pass2ExitCode, pass2Error) = await RunFfmpegAsync(pass2Args);
+                if (pass2ExitCode == 0)
+                {
+                    MessageBox.Show("Файл успешно обработан!", "Успех", MessageBoxButton.OK,
+                        MessageBoxImage.Information);
+                }
+                else
+                {
+                    MessageBox.Show($"Ошибка ffmpeg (pass 2):\n{pass2Error}", "Ошибка", MessageBoxButton.OK,
+                        MessageBoxImage.Error);
+                }
 
-            if (process.ExitCode == 0)
+                return;
+            }
+
+            ffmpegArgs += $" \"{outputPath}\"";
+            var (exitCode, errorOutput) = await RunFfmpegAsync(ffmpegArgs);
+            if (exitCode == 0)
             {
-                MessageBox.Show("Файл успешно обработан!", "Успех", MessageBoxButton.OK, MessageBoxImage.Information);
+                MessageBox.Show("Файл успешно обработан!", "Успех", MessageBoxButton.OK,
+                    MessageBoxImage.Information);
             }
             else
             {
@@ -235,8 +302,18 @@ public partial class MainWindow : Window
             return;
         }
 
-        var inputPath = PreviewMediaPlayer.Source.LocalPath;
+        if (string.IsNullOrWhiteSpace(RootPath))
+        {
+            MessageBox.Show("Пожалуйста, сначала установите корневую папку.");
+            return;
+        }
+
+        if (!TryGetPreviewInputPath(out var inputPath))
+        {
+            return;
+        }
         var processedPath = Path.Combine(RootPath, "TrackManager", "Processed");
+        Directory.CreateDirectory(processedPath);
         var outputPath = Path.Combine(processedPath, $"{fileName}.{_selectedFormat}");
 
         if (File.Exists(outputPath))
@@ -252,24 +329,9 @@ public partial class MainWindow : Window
                 .Replace("{input}", inputPath)
                 .Replace("{output}", outputPath);
 
-            var process = new Process
-            {
-                StartInfo = new ProcessStartInfo
-                {
-                    FileName = "ffmpeg",
-                    Arguments = command,
-                    UseShellExecute = false,
-                    CreateNoWindow = true,
-                    RedirectStandardOutput = true,
-                    RedirectStandardError = true
-                }
-            };
+            var (exitCode, errorOutput) = await RunFfmpegAsync(command);
 
-            process.Start();
-            var errorOutput = await process.StandardError.ReadToEndAsync(); 
-            await process.WaitForExitAsync();
-
-            if (process.ExitCode == 0)
+            if (exitCode == 0)
             {
                 MessageBox.Show("Команда выполнена успешно!", "Успех", MessageBoxButton.OK, MessageBoxImage.Information);
             }
@@ -282,5 +344,46 @@ public partial class MainWindow : Window
         {
             MessageBox.Show($"Ошибка выполнения команды: {ex.Message}", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
         }
+    }
+
+    private bool TryGetPreviewInputPath(out string inputPath)
+    {
+        inputPath = string.Empty;
+        if (PreviewMediaPlayer.Source == null)
+        {
+            MessageBox.Show("Сначала выберите файл для обработки.");
+            return false;
+        }
+
+        inputPath = PreviewMediaPlayer.Source.LocalPath;
+        if (string.IsNullOrWhiteSpace(inputPath))
+        {
+            MessageBox.Show("Не удалось определить путь к файлу.");
+            return false;
+        }
+
+        return true;
+    }
+
+    private static async Task<(int ExitCode, string ErrorOutput)> RunFfmpegAsync(string arguments)
+    {
+        var process = new Process
+        {
+            StartInfo = new ProcessStartInfo
+            {
+                FileName = "ffmpeg",
+                Arguments = arguments,
+                UseShellExecute = false,
+                CreateNoWindow = true,
+                RedirectStandardOutput = true,
+                RedirectStandardError = true
+            }
+        };
+
+        process.Start();
+        var errorOutput = await process.StandardError.ReadToEndAsync();
+        await process.WaitForExitAsync();
+
+        return (process.ExitCode, errorOutput);
     }
 }
