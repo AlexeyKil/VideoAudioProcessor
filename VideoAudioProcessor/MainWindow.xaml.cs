@@ -28,6 +28,7 @@ public partial class MainWindow : Window
     public MainWindow()
     {
         InitializeComponent();
+        InitializePreviewTimer();
         InitializeProgressTimer();
         VolumeSlider.Value = 0.5;
     }

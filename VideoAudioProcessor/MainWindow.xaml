@@ -177,20 +177,177 @@
                 
                 <!-- Добавляем новый Grid для экрана обработки -->
                 <Grid x:Name="ProcessScreen" Visibility="Collapsed">
-                    <Grid.RowDefinitions>
-                        <RowDefinition Height="*"/>
-                        <RowDefinition Height="Auto"/>
-                    </Grid.RowDefinitions>
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="3*"/> <!-- Плеер -->
+                        <ColumnDefinition Width="2*"/> <!-- Настройки -->
+                    </Grid.ColumnDefinitions>
 
-                    <MediaElement x:Name="ProcessMediaPlayer" 
-                                  Grid.Row="0"
-                                  LoadedBehavior="Manual" 
-                                  UnloadedBehavior="Stop"
-                                  Stretch="Uniform"/>
+                    <!-- Плеер с управлением -->
+                    <Grid Grid.Column="0">
+                        <Grid.RowDefinitions>
+                            <RowDefinition Height="*"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                            <RowDefinition Height="Auto"/>
+                        </Grid.RowDefinitions>
 
-                    <StackPanel Grid.Row="1" Orientation="Horizontal" 
-                                HorizontalAlignment="Center" VerticalAlignment="Center" 
-                                Margin="10"> 
+                        <MediaElement x:Name="PreviewMediaPlayer" Grid.Row="0"
+                                      LoadedBehavior="Manual" UnloadedBehavior="Stop"
+                                      Stretch="Uniform"
+                                      MediaOpened="PreviewMediaPlayer_MediaOpened"
+                                      MediaEnded="PreviewMediaPlayer_MediaEnded"/>
+
+                        <Slider x:Name="PreviewSlider" Grid.Row="1" IsMoveToPointEnabled="True"
+                                ValueChanged="PreviewSlider_ValueChanged"/>
+
+                        <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Center">
+                            <TextBlock x:Name="PreviewCurrentTime" Text="00:00" Margin="5"/>
+                            <TextBlock Text="/" Margin="5"/>
+                            <TextBlock x:Name="PreviewTotalTime" Text="00:00" Margin="5"/>
+                        </StackPanel>
+
+                        <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Center" Margin="10">
+                            <Button Content="▶" Click="PreviewPlay_Click"/>
+                            <Button Content="⏸" Click="PreviewPause_Click" Margin="5,0"/>
+                            <Button Content="⏹" Click="PreviewStop_Click"/>
+                        </StackPanel>
+                    </Grid>
+
+                    <!-- Панель настроек -->
+                    <StackPanel Grid.Column="1" Margin="20">
+                        <!-- Ресурсы должны быть объявлены в начале элемента -->
+                        <StackPanel.Resources>
+                            <Style TargetType="CheckBox">
+                                <Setter Property="Foreground" Value="White"/>
+                                <Setter Property="Margin" Value="0,0,0,15"/>
+                                <Setter Property="Template">
+                                    <Setter.Value>
+                                        <ControlTemplate TargetType="CheckBox">
+                                            <Grid>
+                                                <Border x:Name="border" Background="#333" CornerRadius="5" 
+                                                        BorderThickness="1" BorderBrush="#555" Padding="8,5">
+                                                    <ContentPresenter RecognizesAccessKey="True"/>
+                                                </Border>
+                                                <Path x:Name="checkMark" Data="M0,5 L5,10 L12,0" Stroke="White" 
+                                                      StrokeThickness="2" HorizontalAlignment="Right" Margin="0,0,10,0"
+                                                      Visibility="Collapsed"/>
+                                            </Grid>
+                                            <ControlTemplate.Triggers>
+                                                <Trigger Property="IsChecked" Value="True">
+                                                    <Setter TargetName="checkMark" Property="Visibility" Value="Visible"/>
+                                                    <Setter TargetName="border" Property="Background" Value="#444"/>
+                                                </Trigger>
+                                                <Trigger Property="IsMouseOver" Value="True">
+                                                    <Setter TargetName="border" Property="BorderBrush" Value="#777"/>
+                                                </Trigger>
+                                            </ControlTemplate.Triggers>
+                                        </ControlTemplate>
+                                    </Setter.Value>
+                                </Setter>
+                            </Style>
+                        </StackPanel.Resources>
+
+                        <!-- Основные настройки -->
+                        <TextBlock Text="Формат вывода:" FontWeight="Bold" Margin="0,0,0,10" Foreground="White"/>
+
+                        <StackPanel Margin="0,0,0,20">
+                            <RadioButton Content="MP4" GroupName="OutputFormat" Tag="mp4" Checked="OnOutputFormatChanged" 
+                                        Foreground="White" Margin="0,0,0,5"/>
+                            <RadioButton Content="AVI" GroupName="OutputFormat" Tag="avi" Checked="OnOutputFormatChanged" 
+                                        Foreground="White" Margin="0,0,0,5"/>
+                            <RadioButton Content="MKV" GroupName="OutputFormat" Tag="mkv" Checked="OnOutputFormatChanged" 
+                                        Foreground="White"/>
+                        </StackPanel>
+
+                        <TextBlock Text="Обрезка:" FontWeight="Bold" Margin="0,0,0,10" Foreground="White"/>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,10">
+                            <TextBlock Text="Начало:" Width="60" Foreground="White"/>
+                            <TextBox x:Name="TrimStartTextBox" Width="100" Text="00:00:00"/>
+                        </StackPanel>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,20">
+                            <TextBlock Text="Конец:" Width="60" Foreground="White"/>
+                            <TextBox x:Name="TrimEndTextBox" Width="100" Text="00:00:10"/>
+                        </StackPanel>
+                        
+                        <TextBlock Text="Название файла:" FontWeight="Bold" Margin="0,0,0,10" Foreground="White"/>
+                        <TextBox x:Name="FileNameTextBox" Margin="0,0,0,20"/>
+                        
+                        <Button Content="Выполнить" Click="ExecuteProcessing_Click" Height="40" Width="120" 
+                                HorizontalAlignment="Center" Foreground="White" Margin="0,0,0,30"/>
+                        
+                        <!-- Дополнительные функции -->
+                        <TextBlock Text="Дополнительные функции:" FontWeight="Bold" Margin="0,0,0,15" Foreground="White" FontSize="16"/>
+                        
+                        <ScrollViewer VerticalScrollBarVisibility="Auto" MaxHeight="300" Margin="0,0,0,10">
+                            <StackPanel>
+                                <!-- VP9 -->
+                                <CheckBox Content="Базовое преобразование в VP9 (с контролем качества)" x:Name="Vp9CheckBox"/>
+                                <StackPanel Orientation="Horizontal" Margin="20,0,0,15">
+                                    <TextBlock Text="CRF (качество):" VerticalAlignment="Center" Foreground="White"/>
+                                    <TextBox x:Name="Vp9CrfTextBox" Width="50" Margin="10,0,0,0" Text="30"/>
+                                </StackPanel>
+
+                                <!-- 2-pass -->
+                                <CheckBox Content="Управление битрейтом (2-pass кодирование)" x:Name="TwoPassCheckBox"/>
+                                <StackPanel Orientation="Horizontal" Margin="20,0,0,15">
+                                    <TextBlock Text="Bitrate (например 1M):" VerticalAlignment="Center" Foreground="White"/>
+                                    <TextBox x:Name="TwoPassBitrateTextBox" Width="60" Margin="10,0,0,0" Text="1M"/>
+                                </StackPanel>
+
+                                <!-- Fast encode -->
+                                <CheckBox Content="Ускоренное кодирование (с потерей качества)" x:Name="FastCheckBox"/>
+
+                                <!-- Crop & Resize -->
+                                <CheckBox Content="Обрезка и изменение разрешения" x:Name="CropResizeCheckBox"/>
+                                <StackPanel Orientation="Horizontal" Margin="20,0,0,15">
+                                    <TextBlock Text="Crop (w:h:x:y):" VerticalAlignment="Center" Foreground="White"/>
+                                    <TextBox x:Name="CropTextBox" Width="100" Margin="10,0,0,0" Text="640:360:0:0"/>
+                                </StackPanel>
+                                <StackPanel Orientation="Horizontal" Margin="20,0,0,15">
+                                    <TextBlock Text="Scale (w:h):" VerticalAlignment="Center" Foreground="White"/>
+                                    <TextBox x:Name="ScaleTextBox" Width="100" Margin="10,0,0,0" Text="640:360"/>
+                                </StackPanel>
+
+                                <!-- Extract Opus -->
+                                <CheckBox Content="Извлечение аудио и конвертация в Opus" x:Name="ExtractOpusCheckBox"/>
+
+                                <!-- Alpha channel -->
+                                <CheckBox Content="Создание видео с прозрачностью (Alpha-канал)" x:Name="AlphaChannelCheckBox"/>
+
+                                <!-- FPS -->
+                                <CheckBox Content="Изменение FPS (частоты кадров)" x:Name="FpsChangeCheckBox"/>
+                                <StackPanel Orientation="Horizontal" Margin="20,0,0,15">
+                                    <TextBlock Text="FPS:" VerticalAlignment="Center" Foreground="White"/>
+                                    <TextBox x:Name="FpsTextBox" Width="50" Margin="10,0,0,0" Text="30" Foreground="White"/>
+                                </StackPanel>
+
+                                <!-- Remove audio -->
+                                <CheckBox Content="Удаление аудио" x:Name="RemoveAudioCheckBox"/>
+                            </StackPanel>
+                        </ScrollViewer>
+                        
+                        <!-- Ручной ввод команд FFmpeg -->
+                        <TextBlock Text="Ручной ввод команд FFmpeg:" FontWeight="Bold" Margin="0,20,0,10" Foreground="White" FontSize="16"/>
+
+                        <Grid>
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="*"/>
+                                <ColumnDefinition Width="Auto"/>
+                            </Grid.ColumnDefinitions>
+    
+                            <!-- Поле для ввода команды -->
+                            <TextBox x:Name="CustomCommandTextBox" Grid.Column="0" 
+                                     AcceptsReturn="True" TextWrapping="Wrap" VerticalScrollBarVisibility="Auto"
+                                     Height="100" Margin="0,0,10,0"
+                                     Text="-i &quot;{input}&quot; -c:v libx264 -c:a aac &quot;{output}&quot;"/>
+    
+                            <!-- Кнопка выполнения -->
+                            <Button Grid.Column="1" Content="Выполнить" Width="120" Height="30"
+                                    Click="ExecuteCustomCommand_Click" VerticalAlignment="Top"/>
+                        </Grid>
+
+                        <TextBlock Text="Подсказка: {input} будет заменено на путь к исходному файлу, {output} - на путь к выходному файлу" 
+                                   Foreground="LightGray" FontSize="11" Margin="0,5,0,15"/>
                     </StackPanel>
                 </Grid>
             </Grid>

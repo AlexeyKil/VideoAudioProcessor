@@ -82,8 +82,8 @@ public partial class MainWindow : Window
     
         try
         {
-            ProcessMediaPlayer.Source = new Uri(selectedFile);
-            ProcessMediaPlayer.Play();
+            PreviewMediaPlayer.Source = new Uri(selectedFile);
+            PreviewMediaPlayer.Play();
         
             // Переключаемся на экран обработки
             HideAllScreens();
@@ -100,8 +100,10 @@ public partial class MainWindow : Window
     
     private void InitializeProgressTimer()
     {
-        _progressTimer = new DispatcherTimer();
-        _progressTimer.Interval = TimeSpan.FromMilliseconds(200);
+        _progressTimer = new DispatcherTimer
+        {
+            Interval = TimeSpan.FromMilliseconds(200)
+        };
         _progressTimer.Tick += ProgressTimer_Tick;
     }
 
