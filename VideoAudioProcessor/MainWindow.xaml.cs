@@ -12,6 +12,7 @@ namespace VideoAudioProcessor;
 public partial class MainWindow : Window
 {
     private static string QueuePath => Path.Combine(RootPath, "TrackManager", "Queue");
+    private static string ProcessedPath => Path.Combine(RootPath, "TrackManager", "Processed");
     
     private static string RootPath
     {
@@ -38,6 +39,7 @@ public partial class MainWindow : Window
         InitializeComponent();
         InitializePreviewTimer();
         InitializeProgressTimer();
+        InitializeProcessedTimer();
         VolumeSlider.Value = 0.5;
     }
 
@@ -109,22 +111,23 @@ public partial class MainWindow : Window
             MessageBox.Show("Пожалуйста, сначала установите корневую папку", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
+        if (!Directory.Exists(ProcessedPath))
+        {
+            MessageBox.Show("Папка обработанных файлов не существует", "Информация", MessageBoxButton.OK,
+                MessageBoxImage.Information);
+            return;
+        }
 
-        var processedPath = Path.Combine(RootPath, "TrackManager", "Processed");
-        if (Directory.Exists(processedPath))
-        {
-            System.Diagnostics.Process.Start("explorer.exe", processedPath);
-        }
-        else
-        {
-            MessageBox.Show("Папка обработанных файлов не существует", "Информация", MessageBoxButton.OK, MessageBoxImage.Information);
-        }
+        RefreshProcessedList();
+        HideAllScreens();
+        ProcessedScreen.Visibility = Visibility.Visible;
     }
 
     private void HideAllScreens()
     {
         StartScreen.Visibility = Visibility.Collapsed;
         QueueScreen.Visibility = Visibility.Collapsed;
+        ProcessedScreen.Visibility = Visibility.Collapsed;
         ProcessScreen.Visibility = Visibility.Collapsed;
     }
 }
