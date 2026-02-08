@@ -32,7 +32,6 @@ public partial class MainWindow : Window
     {
         if (ProcessedListBox.SelectedItem == null)
         {
-            SendToQueueButton.Visibility = Visibility.Collapsed;
             return;
         }
 
@@ -44,7 +43,6 @@ public partial class MainWindow : Window
             ProcessedPlayerStatus.Visibility = Visibility.Collapsed;
             ProcessedMediaPlayer.Play();
             _processedTimer.Start();
-            SendToQueueButton.Visibility = Visibility.Visible;
         }
         catch (Exception ex)
         {

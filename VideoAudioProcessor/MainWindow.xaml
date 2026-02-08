@@ -187,17 +187,16 @@
                     <Grid Grid.Column="0">
                         <Grid.RowDefinitions>
                             <RowDefinition Height="*"/>
-                            <RowDefinition Height="Auto"/>
                         </Grid.RowDefinitions>
 
                         <ListBox x:Name="ProcessedListBox" Grid.Row="0"
-                                 SelectionChanged="ProcessedListBox_SelectionChanged"/>
-
-                        <Button x:Name="SendToQueueButton" Grid.Row="1" Content="В очередь"
-                                Click="SendToQueueButton_Click"
-                                HorizontalAlignment="Center"
-                                Margin="5"
-                                Visibility="Collapsed"/>
+                                 SelectionChanged="ProcessedListBox_SelectionChanged">
+                            <ListBox.ContextMenu>
+                                <ContextMenu>
+                                    <MenuItem Header="В очередь" Click="SendToQueueButton_Click"/>
+                                </ContextMenu>
+                            </ListBox.ContextMenu>
+                        </ListBox>
                     </Grid>
 
                     <!-- Разделитель -->
