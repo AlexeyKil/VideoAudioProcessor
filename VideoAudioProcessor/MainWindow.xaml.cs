@@ -129,5 +129,7 @@ public partial class MainWindow : Window
         QueueScreen.Visibility = Visibility.Collapsed;
         ProcessedScreen.Visibility = Visibility.Collapsed;
         ProcessScreen.Visibility = Visibility.Collapsed;
+        ProjectListScreen.Visibility = Visibility.Collapsed;
+        ProjectEditorScreen.Visibility = Visibility.Collapsed;
     }
 }
