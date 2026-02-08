@@ -86,6 +86,12 @@
                     <MenuItem Header="В очереди" Click="ShowQueue_Click"/>
                     <MenuItem Header="Обработанные" Click="ShowProcessed_Click"/>
                 </MenuItem>
+
+                <!-- Меню Создать проект -->
+                <MenuItem Header="Создать проект">
+                    <MenuItem Header="Видеоколлаж" Click="ShowVideoCollageProjects_Click"/>
+                    <MenuItem Header="Слайд-шоу" Click="ShowSlideShowProjects_Click"/>
+                </MenuItem>
             </Menu>
             
             <!-- Основное содержимое -->
@@ -239,6 +245,101 @@
                                    HorizontalAlignment="Center" VerticalAlignment="Center"
                                    Foreground="White" TextWrapping="Wrap"/>
                     </Grid>
+                </Grid>
+
+                <!-- Экран списка проектов -->
+                <Grid x:Name="ProjectListScreen" Visibility="Collapsed">
+                    <Grid.RowDefinitions>
+                        <RowDefinition Height="*"/>
+                        <RowDefinition Height="Auto"/>
+                    </Grid.RowDefinitions>
+
+                    <StackPanel Grid.Row="0" Margin="20">
+                        <TextBlock x:Name="ProjectListTitle" Text="Проекты" Foreground="White" FontSize="16" Margin="0,0,0,10"/>
+                        <ListBox x:Name="ProjectsListBox" MouseDoubleClick="ProjectsListBox_MouseDoubleClick">
+                            <ListBox.ContextMenu>
+                                <ContextMenu>
+                                    <MenuItem Header="Редактировать" Click="EditProject_Click"/>
+                                    <MenuItem Header="Удалить" Click="DeleteProject_Click"/>
+                                </ContextMenu>
+                            </ListBox.ContextMenu>
+                        </ListBox>
+                    </StackPanel>
+
+                    <StackPanel Grid.Row="1" Orientation="Horizontal" HorizontalAlignment="Center" Margin="0,10">
+                        <Button Content="Создать новый проект" Click="CreateProject_Click" Width="200" Height="40"/>
+                        <Button Content="Назад" Click="BackToStart_Click" Width="120" Height="40" Margin="10,0,0,0"/>
+                    </StackPanel>
+                </Grid>
+
+                <!-- Экран формы создания проекта -->
+                <Grid x:Name="ProjectEditorScreen" Visibility="Collapsed">
+                    <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="3*"/>
+                        <ColumnDefinition Width="2*"/>
+                    </Grid.ColumnDefinitions>
+
+                    <StackPanel Grid.Column="0" Margin="20">
+                        <TextBlock x:Name="ProjectEditorTitle" Text="Проект" Foreground="White" FontSize="16" Margin="0,0,0,10"/>
+                        <TextBlock x:Name="ProjectNameText" Text="" Foreground="LightGray" Margin="0,0,0,15"/>
+
+                        <TextBlock Text="Таймлайн" Foreground="White" FontWeight="Bold" Margin="0,0,0,5"/>
+                        <ListBox x:Name="TimelineItemsListBox" Height="240" DisplayMemberPath="DisplayName"/>
+
+                        <StackPanel x:Name="VideoCollageButtonsPanel" Orientation="Horizontal" Margin="0,10,0,0">
+                            <Button Content="Добавить видео из базы" Click="AddVideoFromBase_Click" Width="180"/>
+                            <Button Content="Добавить видео с компьютера" Click="AddVideoFromComputer_Click" Width="210" Margin="10,0,0,0"/>
+                            <Button Content="Удалить из таймлайна" Click="RemoveTimelineItem_Click" Width="180" Margin="10,0,0,0"/>
+                        </StackPanel>
+
+                        <StackPanel x:Name="SlideShowButtonsPanel" Orientation="Horizontal" Margin="0,10,0,0">
+                            <Button Content="Добавить фото с компьютера" Click="AddImageFromComputer_Click" Width="210"/>
+                            <Button Content="Удалить из таймлайна" Click="RemoveTimelineItem_Click" Width="180" Margin="10,0,0,0"/>
+                        </StackPanel>
+
+                        <TextBlock Text="Аудио" Foreground="White" FontWeight="Bold" Margin="0,20,0,5"/>
+                        <TextBlock x:Name="SelectedAudioText" Text="Аудио не выбрано" Foreground="LightGray" Margin="0,0,0,10"/>
+                        <StackPanel Orientation="Horizontal">
+                            <Button Content="Аудио из базы" Click="SelectAudioFromBase_Click" Width="150"/>
+                            <Button Content="Аудио с компьютера" Click="SelectAudioFromComputer_Click" Width="180" Margin="10,0,0,0"/>
+                            <Button Content="Убрать аудио" Click="ClearAudio_Click" Width="120" Margin="10,0,0,0"/>
+                        </StackPanel>
+
+                        <CheckBox x:Name="UseVideoAudioCheckBox" Content="Использовать аудио из видео" Foreground="White" Margin="0,15,0,0"/>
+                    </StackPanel>
+
+                    <StackPanel Grid.Column="1" Margin="20">
+                        <TextBlock Text="Настройки проекта" Foreground="White" FontWeight="Bold" Margin="0,0,0,10"/>
+
+                        <TextBlock Text="Формат вывода" Foreground="White"/>
+                        <ComboBox x:Name="ProjectOutputFormatComboBox" Margin="0,5,0,15">
+                            <ComboBoxItem Content="mp4"/>
+                            <ComboBoxItem Content="mkv"/>
+                            <ComboBoxItem Content="avi"/>
+                        </ComboBox>
+
+                        <TextBlock Text="Разрешение (Ш x В)" Foreground="White"/>
+                        <StackPanel Orientation="Horizontal" Margin="0,5,0,15">
+                            <TextBox x:Name="ProjectWidthTextBox" Width="80" Text="1920"/>
+                            <TextBlock Text="x" Foreground="White" Margin="5,0"/>
+                            <TextBox x:Name="ProjectHeightTextBox" Width="80" Text="1080"/>
+                        </StackPanel>
+
+                        <TextBlock Text="FPS" Foreground="White"/>
+                        <TextBox x:Name="ProjectFpsTextBox" Width="80" Text="30" Margin="0,5,0,15"/>
+
+                        <TextBlock Text="Переходы (сек.)" Foreground="White"/>
+                        <TextBox x:Name="ProjectTransitionTextBox" Width="80" Text="1" Margin="0,5,0,15"/>
+
+                        <TextBlock x:Name="SlideDurationLabel" Text="Длительность слайда (сек.)" Foreground="White"/>
+                        <TextBox x:Name="SlideDurationTextBox" Width="80" Text="3" Margin="0,5,0,15"/>
+
+                        <TextBlock Text="Автообрезка клипов до (сек.), 0 - без обрезки" Foreground="White"/>
+                        <TextBox x:Name="MaxClipDurationTextBox" Width="80" Text="0" Margin="0,5,0,15"/>
+
+                        <Button Content="Сохранить" Click="SaveProjectVideo_Click" Height="40" Margin="0,20,0,0"/>
+                        <Button Content="Назад к списку" Click="BackToProjectList_Click" Height="35" Margin="0,10,0,0"/>
+                    </StackPanel>
                 </Grid>
                 
                 <!-- Добавляем новый Grid для экрана обработки -->
