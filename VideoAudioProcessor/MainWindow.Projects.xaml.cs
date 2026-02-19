@@ -155,7 +155,7 @@ public partial class MainWindow : Window
 
         TimelineItemsListBox.ItemsSource = _timelineItems;
         ProjectEditorTitle.Text = "Форма редактирования медиаколлажа";
-        ProjectNameText.Text = $"Проект: {project.Name}";
+        ProjectNameTextBox.Text = project.Name;
         SelectedAudioText.Text = string.IsNullOrWhiteSpace(project.AudioPath) ? "Аудио не выбрано" :
             Path.GetFileName(project.AudioPath);
         UseVideoAudioCheckBox.IsChecked = project.UseVideoAudio;
@@ -471,6 +471,11 @@ public partial class MainWindow : Window
             return;
         }
 
+        if (!TryRenameCurrentProject())
+        {
+            return;
+        }
+
         if (!ValidateProjectForRender(_currentProject))
         {
             return;
@@ -494,6 +499,10 @@ public partial class MainWindow : Window
     {
         if (_currentProject != null)
         {
+            if (!TryRenameCurrentProject())
+            {
+                return;
+            }
             SaveProjectToFile(_currentProject);
         }
 
@@ -552,6 +561,64 @@ public partial class MainWindow : Window
         Directory.CreateDirectory(Path.GetDirectoryName(projectPath)!);
         var json = JsonSerializer.Serialize(project, new JsonSerializerOptions { WriteIndented = true });
         File.WriteAllText(projectPath, json);
+    }
+
+    private void RenameProject_Click(object sender, RoutedEventArgs e)
+    {
+        if (_currentProject == null)
+        {
+            return;
+        }
+
+        if (TryRenameCurrentProject())
+        {
+            SaveProjectToFile(_currentProject);
+            MessageBox.Show("Название проекта обновлено.", "Успешно", MessageBoxButton.OK,
+                MessageBoxImage.Information);
+        }
+    }
+
+    private bool TryRenameCurrentProject()
+    {
+        if (_currentProject == null)
+        {
+            return false;
+        }
+
+        var newName = ProjectNameTextBox.Text.Trim();
+        if (string.IsNullOrWhiteSpace(newName))
+        {
+            MessageBox.Show("Введите название проекта.");
+            return false;
+        }
+
+        if (!IsValidProjectName(newName))
+        {
+            MessageBox.Show("Название проекта содержит недопустимые символы.");
+            return false;
+        }
+
+        if (string.Equals(_currentProject.Name, newName, StringComparison.Ordinal))
+        {
+            return true;
+        }
+
+        var oldProjectPath = GetProjectFilePath(_currentProject.Type, _currentProject.Name);
+        var newProjectPath = GetProjectFilePath(_currentProject.Type, newName);
+        if (File.Exists(newProjectPath))
+        {
+            MessageBox.Show("Проект с таким названием уже существует.");
+            return false;
+        }
+
+        _currentProject.Name = newName;
+
+        if (File.Exists(oldProjectPath))
+        {
+            File.Move(oldProjectPath, newProjectPath);
+        }
+
+        return true;
     }
 
     private string GetProjectsPath(ProjectType type)
