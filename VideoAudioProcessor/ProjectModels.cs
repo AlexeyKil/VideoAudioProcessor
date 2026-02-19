@@ -9,22 +9,27 @@ public enum ProjectType
     SlideShow
 }
 
+public enum ProjectMediaKind
+{
+    Video,
+    Image
+}
+
 public sealed class ProjectMediaItem
 {
     public string Path { get; set; } = string.Empty;
     public double DurationSeconds { get; set; }
+    public ProjectMediaKind Kind { get; set; } = ProjectMediaKind.Video;
 
     public string DisplayName
     {
         get
         {
             var fileName = System.IO.Path.GetFileName(Path);
-            if (DurationSeconds > 0)
-            {
-                return $"{fileName} ({DurationSeconds:0.##} сек.)";
-            }
-
-            return fileName;
+            var mediaType = Kind == ProjectMediaKind.Image ? "Фото" : "Видео";
+            return DurationSeconds > 0
+                ? $"[{mediaType}] {fileName} ({DurationSeconds:0.##} сек.)"
+                : $"[{mediaType}] {fileName}";
         }
     }
 }
