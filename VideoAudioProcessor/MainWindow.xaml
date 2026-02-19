@@ -87,10 +87,8 @@
                     <MenuItem Header="Обработанные" Click="ShowProcessed_Click"/>
                 </MenuItem>
 
-                <!-- Меню Создать проект -->
-                <MenuItem Header="Создать проект">
-                    <MenuItem Header="Медиаколлаж (видео + фото)" Click="ShowVideoCollageProjects_Click"/>
-                </MenuItem>
+                <!-- Меню Проекты -->
+                <MenuItem Header="Проекты" Click="ShowVideoCollageProjects_Click"/>
             </Menu>
             
             <!-- Основное содержимое -->
@@ -280,7 +278,11 @@
 
                     <StackPanel Grid.Column="0" Margin="20">
                         <TextBlock x:Name="ProjectEditorTitle" Text="Проект" Foreground="White" FontSize="16" Margin="0,0,0,10"/>
-                        <TextBlock x:Name="ProjectNameText" Text="" Foreground="LightGray" Margin="0,0,0,15"/>
+                        <StackPanel Orientation="Horizontal" Margin="0,0,0,15">
+                            <TextBlock Text="Название проекта:" Foreground="White" VerticalAlignment="Center" Margin="0,0,10,0"/>
+                            <TextBox x:Name="ProjectNameTextBox" Width="260"/>
+                            <Button Content="Переименовать" Click="RenameProject_Click" Width="140" Margin="10,0,0,0"/>
+                        </StackPanel>
 
                         <TextBlock Text="Таймлайн (время)" Foreground="White" FontWeight="Bold" Margin="0,0,0,5"/>
                         <Border Background="#FF2A2A2A" BorderBrush="#FF3F3F46" BorderThickness="1" Padding="8" Margin="0,0,0,8">

@@ -103,6 +103,8 @@ public partial class MainWindow : Window
             }
         }
 
+        var totalDuration = project.Items.Sum(item => item.DurationSeconds);
+
         var currentVideo = videoLabels[0];
         for (var i = 1; i < videoLabels.Count; i++)
         {
@@ -140,12 +142,16 @@ public partial class MainWindow : Window
         }
         else
         {
-            audioMap = "-an";
+            var silentAudioIndex = project.Items.Count;
+            inputBuilder.Append(
+                $" -f lavfi -t {Math.Max(0.5, totalDuration).ToString(CultureInfo.InvariantCulture)} -i anullsrc=channel_layout=stereo:sample_rate=48000");
+            filterBuilder.Append($"[{silentAudioIndex}:a]atrim=0:{Math.Max(0.5, totalDuration).ToString(CultureInfo.InvariantCulture)},asetpts=PTS-STARTPTS[silent];");
+            audioMap = "-map \"[silent]\"";
         }
 
         var filterComplex = filterBuilder.ToString().TrimEnd(';');
         var arguments = $"-y {inputBuilder} -filter_complex \"{filterComplex}\" -map \"[{currentVideo}]\" {audioMap}" +
-                        $" -shortest -c:v libx264 -preset medium -crf 20 -movflags +faststart \"{outputPath}\"";
+                        $" -shortest -c:v libx264 -preset medium -crf 20 -c:a aac -b:a 192k -movflags +faststart \"{outputPath}\"";
 
         return (arguments, tempFiles);
     }
