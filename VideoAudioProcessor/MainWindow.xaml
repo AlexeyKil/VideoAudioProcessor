@@ -89,8 +89,7 @@
 
                 <!-- Меню Создать проект -->
                 <MenuItem Header="Создать проект">
-                    <MenuItem Header="Видеоколлаж" Click="ShowVideoCollageProjects_Click"/>
-                    <MenuItem Header="Слайд-шоу" Click="ShowSlideShowProjects_Click"/>
+                    <MenuItem Header="Медиаколлаж (видео + фото)" Click="ShowVideoCollageProjects_Click"/>
                 </MenuItem>
             </Menu>
             
@@ -283,19 +282,48 @@
                         <TextBlock x:Name="ProjectEditorTitle" Text="Проект" Foreground="White" FontSize="16" Margin="0,0,0,10"/>
                         <TextBlock x:Name="ProjectNameText" Text="" Foreground="LightGray" Margin="0,0,0,15"/>
 
-                        <TextBlock Text="Таймлайн" Foreground="White" FontWeight="Bold" Margin="0,0,0,5"/>
-                        <ListBox x:Name="TimelineItemsListBox" Height="240" DisplayMemberPath="DisplayName"/>
+                        <TextBlock Text="Таймлайн (время)" Foreground="White" FontWeight="Bold" Margin="0,0,0,5"/>
+                        <Border Background="#FF2A2A2A" BorderBrush="#FF3F3F46" BorderThickness="1" Padding="8" Margin="0,0,0,8">
+                            <StackPanel>
+                                <TextBlock x:Name="TimelineScaleText" Text="0 сек" Foreground="LightGray" Margin="0,0,0,6"/>
+                                <Grid Margin="0,0,0,6">
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="150"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="Видео / фото дорожка" Foreground="White" VerticalAlignment="Center"/>
+                                    <Border Grid.Column="1" BorderThickness="1" BorderBrush="#FF4A4A4A" Padding="4" Background="#FF1F1F1F">
+                                        <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+                                            <StackPanel x:Name="VideoTimelinePanel" Orientation="Horizontal"/>
+                                        </ScrollViewer>
+                                    </Border>
+                                </Grid>
+                                <Grid>
+                                    <Grid.ColumnDefinitions>
+                                        <ColumnDefinition Width="150"/>
+                                        <ColumnDefinition Width="*"/>
+                                    </Grid.ColumnDefinitions>
+                                    <TextBlock Text="Аудио дорожка" Foreground="White" VerticalAlignment="Center"/>
+                                    <Border Grid.Column="1" BorderThickness="1" BorderBrush="#FF4A4A4A" Padding="4" Background="#FF1F1F1F">
+                                        <ScrollViewer HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+                                            <StackPanel x:Name="AudioTimelinePanel" Orientation="Horizontal"/>
+                                        </ScrollViewer>
+                                    </Border>
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+                        <ListBox x:Name="TimelineItemsListBox" Height="170" DisplayMemberPath="DisplayName"/>
 
-                        <StackPanel x:Name="VideoCollageButtonsPanel" Orientation="Horizontal" Margin="0,10,0,0">
-                            <Button Content="Добавить видео из базы" Click="AddVideoFromBase_Click" Width="180"/>
-                            <Button Content="Добавить видео с компьютера" Click="AddVideoFromComputer_Click" Width="210" Margin="10,0,0,0"/>
+                        <WrapPanel Margin="0,10,0,0">
+                            <Button Content="Видео из базы" Click="AddVideoFromBase_Click" Width="150"/>
+                            <Button Content="Видео с компьютера" Click="AddVideoFromComputer_Click" Width="180" Margin="10,0,0,0"/>
+                            <Button Content="Фото из базы" Click="AddImageFromBase_Click" Width="150" Margin="10,0,0,0"/>
+                            <Button Content="Фото с компьютера" Click="AddImageFromComputer_Click" Width="180" Margin="10,0,0,0"/>
+                        </WrapPanel>
+                        <WrapPanel Margin="0,10,0,0">
+                            <Button Content="Изменить длительность" Click="EditTimelineItemDuration_Click" Width="170"/>
                             <Button Content="Удалить из таймлайна" Click="RemoveTimelineItem_Click" Width="180" Margin="10,0,0,0"/>
-                        </StackPanel>
-
-                        <StackPanel x:Name="SlideShowButtonsPanel" Orientation="Horizontal" Margin="0,10,0,0">
-                            <Button Content="Добавить фото с компьютера" Click="AddImageFromComputer_Click" Width="210"/>
-                            <Button Content="Удалить из таймлайна" Click="RemoveTimelineItem_Click" Width="180" Margin="10,0,0,0"/>
-                        </StackPanel>
+                        </WrapPanel>
 
                         <TextBlock Text="Аудио" Foreground="White" FontWeight="Bold" Margin="0,20,0,5"/>
                         <TextBlock x:Name="SelectedAudioText" Text="Аудио не выбрано" Foreground="LightGray" Margin="0,0,0,10"/>
@@ -305,7 +333,7 @@
                             <Button Content="Убрать аудио" Click="ClearAudio_Click" Width="120" Margin="10,0,0,0"/>
                         </StackPanel>
 
-                        <CheckBox x:Name="UseVideoAudioCheckBox" Content="Использовать аудио из видео" Foreground="White" Margin="0,15,0,0"/>
+                        <CheckBox x:Name="UseVideoAudioCheckBox" Content="Использовать аудио из видео" Foreground="White" Margin="0,15,0,0" Checked="UseVideoAudioCheckBox_Changed" Unchecked="UseVideoAudioCheckBox_Changed"/>
                     </StackPanel>
 
                     <StackPanel Grid.Column="1" Margin="20">

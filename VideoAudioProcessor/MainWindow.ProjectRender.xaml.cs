@@ -19,9 +19,7 @@ public partial class MainWindow : Window
             Directory.CreateDirectory(ProcessedPath);
             var outputPath = Path.Combine(ProcessedPath, $"{project.Name}.{project.OutputFormat}");
 
-            var (arguments, tempFiles) = project.Type == ProjectType.VideoCollage
-                ? BuildVideoCollageArguments(project, outputPath)
-                : BuildSlideShowArguments(project, outputPath);
+            var (arguments, tempFiles) = BuildVideoCollageArguments(project, outputPath);
 
             if (string.IsNullOrWhiteSpace(arguments))
             {
@@ -74,10 +72,20 @@ public partial class MainWindow : Window
         for (var i = 0; i < project.Items.Count; i++)
         {
             var item = project.Items[i];
-            var duration = GetTrimmedDuration(item.Path, project.MaxClipDurationSeconds);
-            project.Items[i].DurationSeconds = duration;
+            var duration = item.Kind == ProjectMediaKind.Image
+                ? Math.Max(0.5, item.DurationSeconds)
+                : GetTrimmedDuration(item.Path, project.MaxClipDurationSeconds);
+            item.DurationSeconds = duration;
 
-            inputBuilder.Append($" -i \"{item.Path}\"");
+            if (item.Kind == ProjectMediaKind.Image)
+            {
+                inputBuilder.Append($" -loop 1 -t {duration.ToString(CultureInfo.InvariantCulture)} -i \"{item.Path}\"");
+            }
+            else
+            {
+                inputBuilder.Append($" -i \"{item.Path}\"");
+            }
+
             var videoLabel = $"v{i}";
             filterBuilder.Append(
                 $"[{i}:v]trim=0:{duration.ToString(CultureInfo.InvariantCulture)},setpts=PTS-STARTPTS," +
@@ -85,7 +93,7 @@ public partial class MainWindow : Window
                 $"crop={project.Width}:{project.Height},fps={project.Fps},format=yuv420p[{videoLabel}];");
             videoLabels.Add(videoLabel);
 
-            if (project.UseVideoAudio)
+            if (project.UseVideoAudio && item.Kind == ProjectMediaKind.Video && HasAudioStream(item.Path))
             {
                 var audioLabel = $"a{i}";
                 filterBuilder.Append(
@@ -144,52 +152,40 @@ public partial class MainWindow : Window
 
     private (string Arguments, List<string> TempFiles) BuildSlideShowArguments(ProjectData project, string outputPath)
     {
-        var tempFiles = new List<string>();
-        var inputBuilder = new StringBuilder();
-        var filterBuilder = new StringBuilder();
-        var videoLabels = new List<string>();
-        var transition = Math.Max(0.1, project.TransitionSeconds);
-        var slideDuration = Math.Max(1, project.SlideDurationSeconds);
-
-        for (var i = 0; i < project.Items.Count; i++)
+        foreach (var item in project.Items.Where(item => item.Kind == ProjectMediaKind.Image && item.DurationSeconds <= 0))
         {
-            var item = project.Items[i];
-            item.DurationSeconds = slideDuration;
-            inputBuilder.Append($" -loop 1 -t {slideDuration.ToString(CultureInfo.InvariantCulture)} -i \"{item.Path}\"");
-            var label = $"v{i}";
-            filterBuilder.Append(
-                $"[{i}:v]scale={project.Width}:{project.Height}:force_original_aspect_ratio=increase," +
-                $"crop={project.Width}:{project.Height},fps={project.Fps},format=yuv420p[{label}];");
-            videoLabels.Add(label);
+            item.DurationSeconds = Math.Max(1, project.SlideDurationSeconds);
         }
 
-        var currentVideo = videoLabels[0];
-        for (var i = 1; i < videoLabels.Count; i++)
+        return BuildVideoCollageArguments(project, outputPath);
+    }
+
+    private bool HasAudioStream(string path)
+    {
+        try
         {
-            var previousDuration = i * slideDuration;
-            var offset = Math.Max(0, previousDuration - transition);
-            var nextLabel = $"vxf{i}";
-            filterBuilder.Append(
-                $"[{currentVideo}][{videoLabels[i]}]xfade=transition=slideleft:duration=" +
-                $"{transition.ToString(CultureInfo.InvariantCulture)}:offset={offset.ToString(CultureInfo.InvariantCulture)}" +
-                $"[{nextLabel}];");
-            currentVideo = nextLabel;
-        }
+            var process = new Process
+            {
+                StartInfo = new ProcessStartInfo
+                {
+                    FileName = "ffprobe",
+                    Arguments = $"-v error -select_streams a -show_entries stream=codec_type -of csv=p=0 \"{path}\"",
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    RedirectStandardOutput = true,
+                    RedirectStandardError = true
+                }
+            };
 
-        string audioMap = "-an";
-        if (!string.IsNullOrWhiteSpace(project.AudioPath))
+            process.Start();
+            var output = process.StandardOutput.ReadToEnd();
+            process.WaitForExit();
+            return !string.IsNullOrWhiteSpace(output);
+        }
+        catch
         {
-            inputBuilder.Append($" -i \"{project.AudioPath}\"");
-            var audioIndex = project.Items.Count;
-            filterBuilder.Append($"[{audioIndex}:a]aresample=48000,afade=t=in:st=0:d=1[audio];");
-            audioMap = "-map \"[audio]\"";
+            return false;
         }
-
-        var filterComplex = filterBuilder.ToString().TrimEnd(';');
-        var arguments = $"-y {inputBuilder} -filter_complex \"{filterComplex}\" -map \"[{currentVideo}]\" {audioMap}" +
-                        $" -shortest -c:v libx264 -preset medium -crf 20 -movflags +faststart \"{outputPath}\"";
-
-        return (arguments, tempFiles);
     }
 
     private double GetMediaDuration(string path)

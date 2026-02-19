@@ -23,10 +23,6 @@ public partial class MainWindow : Window
         ShowProjectList(ProjectType.VideoCollage);
     }
 
-    private void ShowSlideShowProjects_Click(object sender, RoutedEventArgs e)
-    {
-        ShowProjectList(ProjectType.SlideShow);
-    }
 
     private void ShowProjectList(ProjectType type)
     {
@@ -38,7 +34,7 @@ public partial class MainWindow : Window
         }
 
         _currentProjectType = type;
-        ProjectListTitle.Text = type == ProjectType.VideoCollage ? "Проекты видеоколлажей" : "Проекты слайд-шоу";
+        ProjectListTitle.Text = "Проекты медиаколлажей";
         RefreshProjectList();
         HideAllScreens();
         ProjectListScreen.Visibility = Visibility.Visible;
@@ -158,8 +154,7 @@ public partial class MainWindow : Window
         }
 
         TimelineItemsListBox.ItemsSource = _timelineItems;
-        ProjectEditorTitle.Text = project.Type == ProjectType.VideoCollage ? "Форма создания видеоколлажа" :
-            "Форма создания слайд-шоу";
+        ProjectEditorTitle.Text = "Форма редактирования медиаколлажа";
         ProjectNameText.Text = $"Проект: {project.Name}";
         SelectedAudioText.Text = string.IsNullOrWhiteSpace(project.AudioPath) ? "Аудио не выбрано" :
             Path.GetFileName(project.AudioPath);
@@ -177,12 +172,11 @@ public partial class MainWindow : Window
         SlideDurationTextBox.Text = project.SlideDurationSeconds.ToString();
         MaxClipDurationTextBox.Text = project.MaxClipDurationSeconds.ToString();
 
-        var isVideoCollage = project.Type == ProjectType.VideoCollage;
-        VideoCollageButtonsPanel.Visibility = isVideoCollage ? Visibility.Visible : Visibility.Collapsed;
-        SlideShowButtonsPanel.Visibility = isVideoCollage ? Visibility.Collapsed : Visibility.Visible;
-        UseVideoAudioCheckBox.Visibility = isVideoCollage ? Visibility.Visible : Visibility.Collapsed;
-        SlideDurationLabel.Visibility = isVideoCollage ? Visibility.Collapsed : Visibility.Visible;
-        SlideDurationTextBox.Visibility = isVideoCollage ? Visibility.Collapsed : Visibility.Visible;
+        UseVideoAudioCheckBox.Visibility = Visibility.Visible;
+        SlideDurationLabel.Visibility = Visibility.Collapsed;
+        SlideDurationTextBox.Visibility = Visibility.Collapsed;
+
+        RefreshTimelinePreview();
 
         HideAllScreens();
         ProjectEditorScreen.Visibility = Visibility.Visible;
@@ -201,7 +195,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        AddTimelineItem(selected);
+        AddTimelineItem(selected, ProjectMediaKind.Video);
     }
 
     private void AddVideoFromComputer_Click(object sender, RoutedEventArgs e)
@@ -217,7 +211,24 @@ public partial class MainWindow : Window
             return;
         }
 
-        AddTimelineItem(openFileDialog.FileName);
+        AddTimelineItem(openFileDialog.FileName, ProjectMediaKind.Video);
+    }
+
+
+    private void AddImageFromBase_Click(object sender, RoutedEventArgs e)
+    {
+        if (_currentProject == null)
+        {
+            return;
+        }
+
+        var selected = SelectFromBaseTracks("Изображения|*.jpg;*.jpeg;*.png;*.bmp;*.gif");
+        if (string.IsNullOrWhiteSpace(selected))
+        {
+            return;
+        }
+
+        AddTimelineItem(selected, ProjectMediaKind.Image);
     }
 
     private void AddImageFromComputer_Click(object sender, RoutedEventArgs e)
@@ -233,29 +244,53 @@ public partial class MainWindow : Window
             return;
         }
 
-        AddTimelineItem(openFileDialog.FileName);
+        AddTimelineItem(openFileDialog.FileName, ProjectMediaKind.Image);
     }
 
-    private void AddTimelineItem(string path)
+    private void AddTimelineItem(string path, ProjectMediaKind kind)
     {
         if (_currentProject == null)
         {
             return;
         }
 
-        var duration = _currentProject.Type == ProjectType.SlideShow
-            ? ParseDoubleOrDefault(SlideDurationTextBox.Text, 3)
+        var duration = kind == ProjectMediaKind.Image
+            ? PromptDurationSeconds(3)
             : GetTrimmedDuration(path, ParseDoubleOrDefault(MaxClipDurationTextBox.Text, 0));
 
         var item = new ProjectMediaItem
         {
             Path = path,
-            DurationSeconds = duration
+            DurationSeconds = duration,
+            Kind = kind
         };
 
         _timelineItems.Add(item);
         _currentProject.Items = _timelineItems.ToList();
         SaveProjectToFile(_currentProject);
+        RefreshTimelinePreview();
+    }
+
+    private static double PromptDurationSeconds(double defaultValue)
+    {
+        var input = Interaction.InputBox("Укажите длительность отображения в секундах", "Длительность",
+            defaultValue.ToString("0.##"));
+        var duration = ParseDoubleOrDefault(input, defaultValue);
+        return Math.Max(0.5, duration);
+    }
+
+    private void EditTimelineItemDuration_Click(object sender, RoutedEventArgs e)
+    {
+        if (TimelineItemsListBox.SelectedItem is not ProjectMediaItem selected || _currentProject == null)
+        {
+            return;
+        }
+
+        selected.DurationSeconds = PromptDurationSeconds(selected.DurationSeconds > 0 ? selected.DurationSeconds : 3);
+        TimelineItemsListBox.Items.Refresh();
+        _currentProject.Items = _timelineItems.ToList();
+        SaveProjectToFile(_currentProject);
+        RefreshTimelinePreview();
     }
 
     private void RemoveTimelineItem_Click(object sender, RoutedEventArgs e)
@@ -270,6 +305,7 @@ public partial class MainWindow : Window
         {
             _currentProject.Items = _timelineItems.ToList();
             SaveProjectToFile(_currentProject);
+            RefreshTimelinePreview();
         }
     }
 
@@ -285,6 +321,7 @@ public partial class MainWindow : Window
         SelectedAudioText.Text = Path.GetFileName(selected);
         UseVideoAudioCheckBox.IsChecked = false;
         SaveProjectToFile(_currentProject);
+        RefreshTimelinePreview();
     }
 
     private void SelectAudioFromComputer_Click(object sender, RoutedEventArgs e)
@@ -304,6 +341,7 @@ public partial class MainWindow : Window
         SelectedAudioText.Text = Path.GetFileName(openFileDialog.FileName);
         UseVideoAudioCheckBox.IsChecked = false;
         SaveProjectToFile(_currentProject);
+        RefreshTimelinePreview();
     }
 
     private void ClearAudio_Click(object sender, RoutedEventArgs e)
@@ -316,6 +354,74 @@ public partial class MainWindow : Window
         _currentProject.AudioPath = null;
         SelectedAudioText.Text = "Аудио не выбрано";
         SaveProjectToFile(_currentProject);
+        RefreshTimelinePreview();
+    }
+
+    private void RefreshTimelinePreview()
+    {
+        VideoTimelinePanel.Children.Clear();
+        AudioTimelinePanel.Children.Clear();
+
+        var totalDuration = _timelineItems.Sum(item => Math.Max(0.5, item.DurationSeconds));
+        TimelineScaleText.Text = $"0 сек  |  Общая длительность: {totalDuration:0.##} сек";
+
+        foreach (var item in _timelineItems)
+        {
+            var width = Math.Max(60, item.DurationSeconds * 24);
+            var color = item.Kind == ProjectMediaKind.Image ? "#FF5B3A9E" : "#FF1565C0";
+            var block = new Border
+            {
+                Width = width,
+                Height = 28,
+                Margin = new Thickness(3, 0, 3, 0),
+                CornerRadius = new CornerRadius(3),
+                Background = (System.Windows.Media.Brush)new System.Windows.Media.BrushConverter().ConvertFromString(color)!,
+                Child = new TextBlock
+                {
+                    Text = $"{Path.GetFileName(item.Path)} ({item.DurationSeconds:0.#}с)",
+                    Foreground = System.Windows.Media.Brushes.White,
+                    Margin = new Thickness(6, 4, 6, 4),
+                    TextTrimming = TextTrimming.CharacterEllipsis
+                },
+                ToolTip = item.DisplayName
+            };
+
+            VideoTimelinePanel.Children.Add(block);
+        }
+
+        var audioLabel = string.IsNullOrWhiteSpace(_currentProject?.AudioPath)
+            ? (_currentProject?.UseVideoAudio == true ? "Аудио берется из видео дорожки" : "Без аудио")
+            : Path.GetFileName(_currentProject.AudioPath);
+
+        var audioBlock = new Border
+        {
+            Width = Math.Max(120, totalDuration * 24),
+            Height = 28,
+            Margin = new Thickness(3, 0, 3, 0),
+            CornerRadius = new CornerRadius(3),
+            Background = (System.Windows.Media.Brush)new System.Windows.Media.BrushConverter().ConvertFromString("#FF2E7D32")!,
+            Child = new TextBlock
+            {
+                Text = audioLabel,
+                Foreground = System.Windows.Media.Brushes.White,
+                Margin = new Thickness(6, 4, 6, 4),
+                TextTrimming = TextTrimming.CharacterEllipsis
+            }
+        };
+
+        AudioTimelinePanel.Children.Add(audioBlock);
+    }
+
+    private void UseVideoAudioCheckBox_Changed(object sender, RoutedEventArgs e)
+    {
+        if (_currentProject == null)
+        {
+            return;
+        }
+
+        _currentProject.UseVideoAudio = UseVideoAudioCheckBox.IsChecked == true;
+        SaveProjectToFile(_currentProject);
+        RefreshTimelinePreview();
     }
 
     private string? SelectFromBaseTracks(string filter)
