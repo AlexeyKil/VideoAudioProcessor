@@ -137,7 +137,10 @@ public partial class MainWindow : Window
         {
             inputBuilder.Append($" -i \"{project.AudioPath}\"");
             var audioIndex = project.Items.Count;
-            filterBuilder.Append($"[{audioIndex}:a]aresample=48000,afade=t=in:st=0:d=1[audio];");
+            var audioDurationPart = project.AudioDurationSeconds > 0
+                ? $",atrim=0:{project.AudioDurationSeconds.ToString(CultureInfo.InvariantCulture)}"
+                : string.Empty;
+            filterBuilder.Append($"[{audioIndex}:a]aresample=48000{audioDurationPart},afade=t=in:st=0:d=1[audio];");
             audioMap = "-map \"[audio]\"";
         }
         else

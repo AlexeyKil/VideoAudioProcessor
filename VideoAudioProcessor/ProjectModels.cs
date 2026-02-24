@@ -41,6 +41,7 @@ public sealed class ProjectData
     public List<ProjectMediaItem> Items { get; set; } = new();
     public string? AudioPath { get; set; }
     public bool UseVideoAudio { get; set; } = true;
+    public double AudioDurationSeconds { get; set; }
     public string OutputFormat { get; set; } = "mp4";
     public int Width { get; set; } = 1920;
     public int Height { get; set; } = 1080;

@@ -4,6 +4,8 @@ using System.Linq;
 using System.Text.Json;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Input;
+using System.Windows.Media;
 using Microsoft.Win32;
 using Microsoft.VisualBasic;
 
@@ -15,6 +17,7 @@ public partial class MainWindow : Window
     private ProjectType _currentProjectType;
     private ProjectData? _currentProject;
     private readonly ObservableCollection<ProjectMediaItem> _timelineItems = new();
+    private readonly ObservableCollection<TimelineListEntry> _timelineListItems = new();
 
     private string ProjectsRootPath => Path.Combine(RootPath, "TrackManager", ProjectsFolderName);
 
@@ -153,7 +156,7 @@ public partial class MainWindow : Window
             _timelineItems.Add(item);
         }
 
-        TimelineItemsListBox.ItemsSource = _timelineItems;
+        TimelineItemsListBox.ItemsSource = _timelineListItems;
         ProjectEditorTitle.Text = "Форма редактирования медиаколлажа";
         ProjectNameTextBox.Text = project.Name;
         SelectedAudioText.Text = string.IsNullOrWhiteSpace(project.AudioPath) ? "Аудио не выбрано" :
@@ -176,6 +179,7 @@ public partial class MainWindow : Window
         SlideDurationLabel.Visibility = Visibility.Collapsed;
         SlideDurationTextBox.Visibility = Visibility.Collapsed;
 
+        RefreshTimelineList();
         RefreshTimelinePreview();
 
         HideAllScreens();
@@ -189,7 +193,7 @@ public partial class MainWindow : Window
             return;
         }
 
-        var selected = SelectFromBaseTracks("Видео файлы|*.mp4;*.avi;*.mkv;*.mov;*.wmv");
+        var selected = SelectFromTrackStorage("Выберите видео из треков", IsVideoFile);
         if (string.IsNullOrWhiteSpace(selected))
         {
             return;
@@ -214,22 +218,6 @@ public partial class MainWindow : Window
         AddTimelineItem(openFileDialog.FileName, ProjectMediaKind.Video);
     }
 
-
-    private void AddImageFromBase_Click(object sender, RoutedEventArgs e)
-    {
-        if (_currentProject == null)
-        {
-            return;
-        }
-
-        var selected = SelectFromBaseTracks("Изображения|*.jpg;*.jpeg;*.png;*.bmp;*.gif");
-        if (string.IsNullOrWhiteSpace(selected))
-        {
-            return;
-        }
-
-        AddTimelineItem(selected, ProjectMediaKind.Image);
-    }
 
     private void AddImageFromComputer_Click(object sender, RoutedEventArgs e)
     {
@@ -268,6 +256,7 @@ public partial class MainWindow : Window
         _timelineItems.Add(item);
         _currentProject.Items = _timelineItems.ToList();
         SaveProjectToFile(_currentProject);
+        RefreshTimelineList();
         RefreshTimelinePreview();
     }
 
@@ -281,46 +270,73 @@ public partial class MainWindow : Window
 
     private void EditTimelineItemDuration_Click(object sender, RoutedEventArgs e)
     {
-        if (TimelineItemsListBox.SelectedItem is not ProjectMediaItem selected || _currentProject == null)
+        if (TimelineItemsListBox.SelectedItem is not TimelineListEntry selectedEntry || _currentProject == null)
         {
             return;
         }
 
-        selected.DurationSeconds = PromptDurationSeconds(selected.DurationSeconds > 0 ? selected.DurationSeconds : 3);
-        TimelineItemsListBox.Items.Refresh();
-        _currentProject.Items = _timelineItems.ToList();
+        if (selectedEntry.MediaItem != null)
+        {
+            selectedEntry.MediaItem.DurationSeconds = PromptDurationSeconds(selectedEntry.MediaItem.DurationSeconds > 0
+                ? selectedEntry.MediaItem.DurationSeconds
+                : 3);
+            _currentProject.Items = _timelineItems.ToList();
+        }
+        else if (selectedEntry.IsAudio)
+        {
+            _currentProject.AudioDurationSeconds = PromptDurationSeconds(_currentProject.AudioDurationSeconds > 0
+                ? _currentProject.AudioDurationSeconds
+                : _timelineItems.Sum(item => Math.Max(0.5, item.DurationSeconds)));
+        }
+
         SaveProjectToFile(_currentProject);
+        RefreshTimelineList();
         RefreshTimelinePreview();
     }
 
     private void RemoveTimelineItem_Click(object sender, RoutedEventArgs e)
     {
-        if (TimelineItemsListBox.SelectedItem is not ProjectMediaItem selected)
+        if (TimelineItemsListBox.SelectedItem is not TimelineListEntry selected)
         {
             return;
         }
 
-        _timelineItems.Remove(selected);
         if (_currentProject != null)
         {
+            if (selected.MediaItem != null)
+            {
+                _timelineItems.Remove(selected.MediaItem);
+            }
+            else if (selected.IsAudio)
+            {
+                _currentProject.AudioPath = null;
+                _currentProject.AudioDurationSeconds = 0;
+                _currentProject.UseVideoAudio = false;
+                UseVideoAudioCheckBox.IsChecked = false;
+                SelectedAudioText.Text = "Аудио не выбрано";
+            }
+
             _currentProject.Items = _timelineItems.ToList();
             SaveProjectToFile(_currentProject);
+            RefreshTimelineList();
             RefreshTimelinePreview();
         }
     }
 
     private void SelectAudioFromBase_Click(object sender, RoutedEventArgs e)
     {
-        var selected = SelectFromBaseTracks("Аудио файлы|*.mp3;*.wav;*.ogg;*.flac;*.aac;*.m4a");
+        var selected = SelectFromTrackStorage("Выберите аудио из треков", IsAudioFile);
         if (string.IsNullOrWhiteSpace(selected) || _currentProject == null)
         {
             return;
         }
 
         _currentProject.AudioPath = selected;
+        _currentProject.AudioDurationSeconds = 0;
         SelectedAudioText.Text = Path.GetFileName(selected);
         UseVideoAudioCheckBox.IsChecked = false;
         SaveProjectToFile(_currentProject);
+        RefreshTimelineList();
         RefreshTimelinePreview();
     }
 
@@ -338,9 +354,11 @@ public partial class MainWindow : Window
         }
 
         _currentProject.AudioPath = openFileDialog.FileName;
+        _currentProject.AudioDurationSeconds = 0;
         SelectedAudioText.Text = Path.GetFileName(openFileDialog.FileName);
         UseVideoAudioCheckBox.IsChecked = false;
         SaveProjectToFile(_currentProject);
+        RefreshTimelineList();
         RefreshTimelinePreview();
     }
 
@@ -352,9 +370,25 @@ public partial class MainWindow : Window
         }
 
         _currentProject.AudioPath = null;
+        _currentProject.AudioDurationSeconds = 0;
         SelectedAudioText.Text = "Аудио не выбрано";
         SaveProjectToFile(_currentProject);
+        RefreshTimelineList();
         RefreshTimelinePreview();
+    }
+
+    private void RefreshTimelineList()
+    {
+        _timelineListItems.Clear();
+        foreach (var item in _timelineItems)
+        {
+            _timelineListItems.Add(new TimelineListEntry(item));
+        }
+
+        if (_currentProject?.UseVideoAudio == true || !string.IsNullOrWhiteSpace(_currentProject?.AudioPath))
+        {
+            _timelineListItems.Add(TimelineListEntry.CreateAudio(_currentProject));
+        }
     }
 
     private void RefreshTimelinePreview()
@@ -421,50 +455,150 @@ public partial class MainWindow : Window
 
         _currentProject.UseVideoAudio = UseVideoAudioCheckBox.IsChecked == true;
         SaveProjectToFile(_currentProject);
+        RefreshTimelineList();
         RefreshTimelinePreview();
     }
 
-    private string? SelectFromBaseTracks(string filter)
+    private static readonly string[] VideoExtensions = [".mp4", ".avi", ".mkv", ".mov", ".wmv"];
+    private static readonly string[] AudioExtensions = [".mp3", ".wav", ".ogg", ".flac", ".aac", ".m4a"];
+
+    private string? SelectFromTrackStorage(string title, Func<string, bool> predicate)
     {
         if (string.IsNullOrEmpty(RootPath))
         {
             return null;
         }
 
-        var baseTracks = GetBaseTracks();
+        var baseTracks = GetBaseTracks(predicate);
         if (baseTracks.Count == 0)
         {
             MessageBox.Show("В базе треков нет файлов.");
             return null;
         }
 
-        var dialog = new OpenFileDialog
+        var listBox = new ListBox
         {
-            Filter = filter,
-            Multiselect = false,
-            InitialDirectory = RootPath
+            Margin = new Thickness(10),
+            DisplayMemberPath = nameof(TrackStorageItem.DisplayName),
+            ItemsSource = baseTracks
+        };
+        if (baseTracks.Count > 0)
+        {
+            listBox.SelectedIndex = 0;
+        }
+
+        var selectButton = new Button
+        {
+            Content = "Выбрать",
+            Width = 90,
+            IsDefault = true,
+            Margin = new Thickness(0, 0, 8, 0)
         };
 
-        return dialog.ShowDialog() == true ? dialog.FileName : null;
+        var cancelButton = new Button
+        {
+            Content = "Отмена",
+            Width = 90,
+            IsCancel = true
+        };
+
+        var actionsPanel = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            HorizontalAlignment = HorizontalAlignment.Right,
+            Margin = new Thickness(10, 0, 10, 10)
+        };
+        actionsPanel.Children.Add(selectButton);
+        actionsPanel.Children.Add(cancelButton);
+
+        var layout = new Grid();
+        layout.RowDefinitions.Add(new RowDefinition { Height = new GridLength(1, GridUnitType.Star) });
+        layout.RowDefinitions.Add(new RowDefinition { Height = GridLength.Auto });
+        Grid.SetRow(listBox, 0);
+        Grid.SetRow(actionsPanel, 1);
+        layout.Children.Add(listBox);
+        layout.Children.Add(actionsPanel);
+
+        var pickerWindow = new Window
+        {
+            Title = title,
+            Width = 640,
+            Height = 420,
+            Owner = this,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            Content = layout,
+            Background = (Brush)new BrushConverter().ConvertFromString("#FF1E1E1E")!
+        };
+
+        string? selectedPath = null;
+        selectButton.Click += (_, _) =>
+        {
+            if (listBox.SelectedItem is TrackStorageItem selectedItem)
+            {
+                selectedPath = selectedItem.Path;
+                pickerWindow.DialogResult = true;
+            }
+        };
+
+        listBox.MouseDoubleClick += (_, _) =>
+        {
+            if (listBox.SelectedItem is TrackStorageItem selectedItem)
+            {
+                selectedPath = selectedItem.Path;
+                pickerWindow.DialogResult = true;
+            }
+        };
+
+        return pickerWindow.ShowDialog() == true ? selectedPath : null;
     }
 
-    private List<string> GetBaseTracks()
+    private List<TrackStorageItem> GetBaseTracks(Func<string, bool> predicate)
     {
-        var results = new List<string>();
+        var results = new List<TrackStorageItem>();
         if (!string.IsNullOrEmpty(QueuePath) && Directory.Exists(QueuePath))
         {
-            results.AddRange(Directory.GetFiles(QueuePath));
+            results.AddRange(Directory.GetFiles(QueuePath)
+                .Where(predicate)
+                .Select(path => new TrackStorageItem(path, "В очереди")));
         }
 
         if (!string.IsNullOrEmpty(ProcessedPath) && Directory.Exists(ProcessedPath))
         {
-            results.AddRange(Directory.GetFiles(ProcessedPath));
+            results.AddRange(Directory.GetFiles(ProcessedPath)
+                .Where(predicate)
+                .Select(path => new TrackStorageItem(path, "Обработанные")));
         }
 
-        return results;
+        return results.OrderBy(item => item.Source).ThenBy(item => item.FileName).ToList();
     }
 
-    private void SaveProjectVideo_Click(object sender, RoutedEventArgs e)
+    private static bool IsVideoFile(string path)
+    {
+        var extension = Path.GetExtension(path).ToLowerInvariant();
+        return VideoExtensions.Contains(extension);
+    }
+
+    private static bool IsAudioFile(string path)
+    {
+        var extension = Path.GetExtension(path).ToLowerInvariant();
+        return AudioExtensions.Contains(extension);
+    }
+
+    private void ListBoxItem_PreviewMouseRightButtonDown(object sender, MouseButtonEventArgs e)
+    {
+        var current = e.OriginalSource as DependencyObject;
+        while (current is not null and not ListBoxItem)
+        {
+            current = VisualTreeHelper.GetParent(current);
+        }
+
+        if (current is ListBoxItem listBoxItem)
+        {
+            listBoxItem.IsSelected = true;
+        }
+    }
+
+    private async void SaveProjectVideo_Click(object sender, RoutedEventArgs e)
     {
         if (_currentProject == null)
         {
@@ -492,7 +626,65 @@ public partial class MainWindow : Window
         _currentProject.Items = _timelineItems.ToList();
 
         SaveProjectToFile(_currentProject);
-        _ = RenderProjectAsync(_currentProject);
+        SaveProjectButton.IsEnabled = false;
+        SaveProgressPanel.Visibility = Visibility.Visible;
+        try
+        {
+            await RenderProjectAsync(_currentProject);
+        }
+        finally
+        {
+            SaveProgressPanel.Visibility = Visibility.Collapsed;
+            SaveProjectButton.IsEnabled = true;
+        }
+    }
+
+    private sealed class TrackStorageItem(string path, string source)
+    {
+        public string Path { get; } = path;
+        public string Source { get; } = source;
+        public string FileName => System.IO.Path.GetFileName(Path);
+        public string DisplayName => $"[{Source}] {FileName}";
+    }
+
+    private sealed class TimelineListEntry
+    {
+        private TimelineListEntry(ProjectMediaItem? mediaItem, bool isAudio, string? displayName = null)
+        {
+            MediaItem = mediaItem;
+            IsAudio = isAudio;
+            _displayName = displayName;
+        }
+
+        private readonly string? _displayName;
+        public ProjectMediaItem? MediaItem { get; }
+        public bool IsAudio { get; }
+
+        public string DisplayName => MediaItem?.DisplayName ?? _displayName ?? string.Empty;
+
+        public static TimelineListEntry CreateAudio(ProjectData? project)
+        {
+            if (project == null)
+            {
+                return new TimelineListEntry(null, true, "[Аудио] Без аудио");
+            }
+
+            var audioName = project.UseVideoAudio
+                ? "Аудио берется из видео дорожки"
+                : (!string.IsNullOrWhiteSpace(project.AudioPath)
+                    ? System.IO.Path.GetFileName(project.AudioPath)
+                    : "Без аудио");
+
+            var duration = project.AudioDurationSeconds > 0
+                ? $" ({project.AudioDurationSeconds:0.##} сек.)"
+                : string.Empty;
+
+            return new TimelineListEntry(null, true, $"[Аудио] {audioName}{duration}");
+        }
+
+        public TimelineListEntry(ProjectMediaItem item) : this(item, false)
+        {
+        }
     }
 
     private void BackToProjectList_Click(object sender, RoutedEventArgs e)
