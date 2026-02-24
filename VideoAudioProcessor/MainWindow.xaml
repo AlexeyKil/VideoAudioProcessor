@@ -193,10 +193,12 @@
                         </Grid.RowDefinitions>
 
                         <ListBox x:Name="ProcessedListBox" Grid.Row="0"
-                                 SelectionChanged="ProcessedListBox_SelectionChanged">
+                                 SelectionChanged="ProcessedListBox_SelectionChanged"
+                                 PreviewMouseRightButtonDown="ListBoxItem_PreviewMouseRightButtonDown">
                             <ListBox.ContextMenu>
                                 <ContextMenu>
                                     <MenuItem Header="В очередь" Click="SendToQueueButton_Click"/>
+                                    <MenuItem Header="Удалить" Click="DeleteProcessedFile_Click"/>
                                 </ContextMenu>
                             </ListBox.ContextMenu>
                         </ListBox>
@@ -314,17 +316,20 @@
                                 </Grid>
                             </StackPanel>
                         </Border>
-                        <ListBox x:Name="TimelineItemsListBox" Height="170" DisplayMemberPath="DisplayName"/>
+                        <ListBox x:Name="TimelineItemsListBox" Height="170" DisplayMemberPath="DisplayName"
+                                 PreviewMouseRightButtonDown="ListBoxItem_PreviewMouseRightButtonDown">
+                            <ListBox.ContextMenu>
+                                <ContextMenu>
+                                    <MenuItem Header="Изменить длительность" Click="EditTimelineItemDuration_Click"/>
+                                    <MenuItem Header="Удалить из таймлайна" Click="RemoveTimelineItem_Click"/>
+                                </ContextMenu>
+                            </ListBox.ContextMenu>
+                        </ListBox>
 
                         <WrapPanel Margin="0,10,0,0">
                             <Button Content="Видео из базы" Click="AddVideoFromBase_Click" Width="150"/>
                             <Button Content="Видео с компьютера" Click="AddVideoFromComputer_Click" Width="180" Margin="10,0,0,0"/>
-                            <Button Content="Фото из базы" Click="AddImageFromBase_Click" Width="150" Margin="10,0,0,0"/>
                             <Button Content="Фото с компьютера" Click="AddImageFromComputer_Click" Width="180" Margin="10,0,0,0"/>
-                        </WrapPanel>
-                        <WrapPanel Margin="0,10,0,0">
-                            <Button Content="Изменить длительность" Click="EditTimelineItemDuration_Click" Width="170"/>
-                            <Button Content="Удалить из таймлайна" Click="RemoveTimelineItem_Click" Width="180" Margin="10,0,0,0"/>
                         </WrapPanel>
 
                         <TextBlock Text="Аудио" Foreground="White" FontWeight="Bold" Margin="0,20,0,5"/>
@@ -332,7 +337,6 @@
                         <StackPanel Orientation="Horizontal">
                             <Button Content="Аудио из базы" Click="SelectAudioFromBase_Click" Width="150"/>
                             <Button Content="Аудио с компьютера" Click="SelectAudioFromComputer_Click" Width="180" Margin="10,0,0,0"/>
-                            <Button Content="Убрать аудио" Click="ClearAudio_Click" Width="120" Margin="10,0,0,0"/>
                         </StackPanel>
 
                         <CheckBox x:Name="UseVideoAudioCheckBox" Content="Использовать аудио из видео" Foreground="White" Margin="0,15,0,0" Checked="UseVideoAudioCheckBox_Changed" Unchecked="UseVideoAudioCheckBox_Changed"/>
@@ -367,7 +371,11 @@
                         <TextBlock Text="Автообрезка клипов до (сек.), 0 - без обрезки" Foreground="White"/>
                         <TextBox x:Name="MaxClipDurationTextBox" Width="80" Text="0" Margin="0,5,0,15"/>
 
-                        <Button Content="Сохранить" Click="SaveProjectVideo_Click" Height="40" Margin="0,20,0,0"/>
+                        <Button x:Name="SaveProjectButton" Content="Сохранить" Click="SaveProjectVideo_Click" Height="40" Margin="0,20,0,0"/>
+                        <StackPanel x:Name="SaveProgressPanel" Orientation="Horizontal" Visibility="Collapsed" Margin="0,8,0,0">
+                            <ProgressBar IsIndeterminate="True" Width="120" Height="12"/>
+                            <TextBlock Text="Сохранение..." Foreground="LightGray" Margin="8,0,0,0" VerticalAlignment="Center"/>
+                        </StackPanel>
                         <Button Content="Назад к списку" Click="BackToProjectList_Click" Height="35" Margin="0,10,0,0"/>
                     </StackPanel>
                 </Grid>

@@ -126,6 +126,43 @@ public partial class MainWindow : Window
         }
     }
 
+
+    private void DeleteProcessedFile_Click(object sender, RoutedEventArgs e)
+    {
+        if (ProcessedListBox.SelectedItem == null)
+        {
+            return;
+        }
+
+        var selectedName = ProcessedListBox.SelectedItem.ToString()!;
+        var selectedFile = Path.Combine(ProcessedPath, selectedName);
+        var result = MessageBox.Show($"Удалить файл {selectedName}?", "Подтверждение удаления", MessageBoxButton.YesNo,
+            MessageBoxImage.Question);
+        if (result != MessageBoxResult.Yes)
+        {
+            return;
+        }
+
+        try
+        {
+            if (File.Exists(selectedFile))
+            {
+                File.Delete(selectedFile);
+            }
+
+            RefreshProcessedList();
+            ProcessedMediaPlayer.Stop();
+            ProcessedMediaPlayer.Source = null;
+            ProcessedPlayerStatus.Text = "Выберите файл для воспроизведения";
+            ProcessedPlayerStatus.Visibility = Visibility.Visible;
+        }
+        catch (Exception ex)
+        {
+            MessageBox.Show($"Ошибка при удалении файла: {ex.Message}", "Ошибка", MessageBoxButton.OK,
+                MessageBoxImage.Error);
+        }
+    }
+
     private string GetUniqueQueueFileName(string originalFileName)
     {
         var baseName = Path.GetFileNameWithoutExtension(originalFileName);
