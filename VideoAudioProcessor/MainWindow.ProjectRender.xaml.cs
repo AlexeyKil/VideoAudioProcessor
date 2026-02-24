@@ -152,9 +152,12 @@ public partial class MainWindow : Window
             audioMap = "-map \"[silent]\"";
         }
 
+        var finalizedVideoLabel = "vout";
+        filterBuilder.Append($"[{currentVideo}]fps={project.Fps},format=yuv420p,setsar=1[{finalizedVideoLabel}];");
+
         var filterComplex = filterBuilder.ToString().TrimEnd(';');
-        var arguments = $"-y {inputBuilder} -filter_complex \"{filterComplex}\" -map \"[{currentVideo}]\" {audioMap}" +
-                        $" -shortest -c:v libx264 -preset medium -crf 20 -c:a aac -b:a 192k -movflags +faststart \"{outputPath}\"";
+        var arguments = $"-y {inputBuilder} -filter_complex \"{filterComplex}\" -map \"[{finalizedVideoLabel}]\" {audioMap}" +
+                        $" -shortest -c:v libx264 -pix_fmt yuv420p -profile:v high -level 4.0 -preset medium -crf 20 -c:a aac -b:a 192k -movflags +faststart \"{outputPath}\"";
 
         return (arguments, tempFiles);
     }
