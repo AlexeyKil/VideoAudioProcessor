@@ -65,6 +65,8 @@ public partial class MainWindow : Window
         var tempFiles = new List<string>();
         var inputBuilder = new StringBuilder();
         var filterBuilder = new StringBuilder();
+        var outputWidth = NormalizeEvenDimension(project.Width, 1920);
+        var outputHeight = NormalizeEvenDimension(project.Height, 1080);
         var videoLabels = new List<string>();
         var timelineAudioLabels = new List<string>();
         project.AudioItems ??= new List<ProjectAudioItem>();
@@ -97,8 +99,8 @@ public partial class MainWindow : Window
             var videoLabel = $"v{i}";
             filterBuilder.Append(
                 $"[{i}:v]trim=0:{duration.ToString(CultureInfo.InvariantCulture)},setpts=PTS-STARTPTS," +
-                $"scale={project.Width}:{project.Height}:force_original_aspect_ratio=increase," +
-                $"crop={project.Width}:{project.Height},fps={project.Fps},format=yuv420p[{videoLabel}];");
+                $"scale={outputWidth}:{outputHeight}:force_original_aspect_ratio=increase," +
+                $"crop={outputWidth}:{outputHeight},fps={project.Fps},format=yuv420p[{videoLabel}];");
             videoLabels.Add(videoLabel);
 
             if (project.UseVideoAudio && item.Kind == ProjectMediaKind.Video && HasAudioStream(item.Path))
@@ -193,6 +195,17 @@ public partial class MainWindow : Window
                         $" -shortest -c:v libx264 -pix_fmt yuv420p -profile:v high -level 4.0 -preset medium -crf 20 -c:a aac -b:a 320k -movflags +faststart \"{outputPath}\"";
 
         return (arguments, tempFiles);
+    }
+
+    private static int NormalizeEvenDimension(int value, int defaultValue)
+    {
+        var normalized = value > 0 ? value : defaultValue;
+        if (normalized % 2 != 0)
+        {
+            normalized--;
+        }
+
+        return Math.Max(2, normalized);
     }
 
     private (string Arguments, List<string> TempFiles) BuildSlideShowArguments(ProjectData project, string outputPath)
