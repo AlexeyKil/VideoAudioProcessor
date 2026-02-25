@@ -361,17 +361,8 @@
                             <TextBox x:Name="ProjectHeightTextBox" Width="80" Text="1080"/>
                         </StackPanel>
 
-                        <TextBlock Text="FPS" Foreground="White"/>
-                        <TextBox x:Name="ProjectFpsTextBox" Width="80" Text="30" Margin="0,5,0,15"/>
-
-                        <TextBlock Text="Переходы (сек.)" Foreground="White"/>
-                        <TextBox x:Name="ProjectTransitionTextBox" Width="80" Text="1" Margin="0,5,0,15"/>
-
                         <TextBlock x:Name="SlideDurationLabel" Text="Длительность слайда (сек.)" Foreground="White"/>
                         <TextBox x:Name="SlideDurationTextBox" Width="80" Text="3" Margin="0,5,0,15"/>
-
-                        <TextBlock Text="Автообрезка клипов до (сек.), 0 - без обрезки" Foreground="White"/>
-                        <TextBox x:Name="MaxClipDurationTextBox" Width="80" Text="0" Margin="0,5,0,15"/>
 
                         <Button x:Name="SaveProjectButton" Content="Сохранить" Click="SaveProjectVideo_Click" Height="40" Margin="0,20,0,0"/>
                         <StackPanel x:Name="SaveProgressPanel" Orientation="Horizontal" Visibility="Collapsed" Margin="0,8,0,0">
