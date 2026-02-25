@@ -9,6 +9,7 @@ namespace VideoAudioProcessor;
 public partial class MainWindow : Window
 {
     private DispatcherTimer _progressTimer;
+    private bool _isUpdatingQueueProgress;
     
     private void FilesListBox_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
@@ -18,7 +19,7 @@ public partial class MainWindow : Window
         
         try
         {
-            MediaPlayer.Source = new Uri(selectedFile);
+            MediaPlayer.Source = new Uri(selectedFile, UriKind.Absolute);
             PlayerStatus.Visibility = Visibility.Collapsed;
             MediaPlayer.Play();
             _progressTimer.Start();
@@ -92,7 +93,7 @@ public partial class MainWindow : Window
     
         try
         {
-            PreviewMediaPlayer.Source = new Uri(selectedFile);
+            PreviewMediaPlayer.Source = new Uri(selectedFile, UriKind.Absolute);
             PreviewMediaPlayer.Play();
         
             // Переключаемся на экран обработки
@@ -120,7 +121,9 @@ public partial class MainWindow : Window
     private void ProgressTimer_Tick(object sender, EventArgs e)
     {
         if (!MediaPlayer.NaturalDuration.HasTimeSpan || MediaPlayer.Source == null) return;
+        _isUpdatingQueueProgress = true;
         ProgressSlider.Value = MediaPlayer.Position.TotalSeconds / MediaPlayer.NaturalDuration.TimeSpan.TotalSeconds * 100;
+        _isUpdatingQueueProgress = false;
         CurrentTimeText.Text = MediaPlayer.Position.ToString(@"mm\:ss");
     }
     
@@ -142,8 +145,7 @@ public partial class MainWindow : Window
 
     private void ProgressSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
     {
-        if (MediaPlayer.Source == null || !MediaPlayer.NaturalDuration.HasTimeSpan) return;
-        // Всегда обновляем позицию, а не только при перетаскивании
+        if (_isUpdatingQueueProgress || MediaPlayer.Source == null || !MediaPlayer.NaturalDuration.HasTimeSpan) return;
         var newPosition = TimeSpan.FromSeconds(ProgressSlider.Value / 100 * 
                                                MediaPlayer.NaturalDuration.TimeSpan.TotalSeconds);
         MediaPlayer.Position = newPosition;

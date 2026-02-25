@@ -12,6 +12,7 @@ namespace VideoAudioProcessor;
 public partial class MainWindow : Window
 {
     private DispatcherTimer _previewTimer;
+    private bool _isUpdatingPreviewProgress;
 
     private void InitializePreviewTimer()
     {
@@ -24,8 +25,10 @@ public partial class MainWindow : Window
     {
         if (PreviewMediaPlayer.NaturalDuration.HasTimeSpan)
         {
+            _isUpdatingPreviewProgress = true;
             PreviewSlider.Value = PreviewMediaPlayer.Position.TotalSeconds /
                                   PreviewMediaPlayer.NaturalDuration.TimeSpan.TotalSeconds * 100;
+            _isUpdatingPreviewProgress = false;
             PreviewCurrentTime.Text = PreviewMediaPlayer.Position.ToString(@"hh\:mm\:ss");
         }
     }
@@ -66,7 +69,7 @@ public partial class MainWindow : Window
 
     private void PreviewSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
     {
-        if (!PreviewMediaPlayer.NaturalDuration.HasTimeSpan) return;
+        if (_isUpdatingPreviewProgress || !PreviewMediaPlayer.NaturalDuration.HasTimeSpan) return;
 
         var newPosition = TimeSpan.FromSeconds(PreviewSlider.Value / 100 *
             PreviewMediaPlayer.NaturalDuration.TimeSpan.TotalSeconds);

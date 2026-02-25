@@ -11,6 +11,7 @@ namespace VideoAudioProcessor;
 public partial class MainWindow : Window
 {
     private DispatcherTimer _processedTimer;
+    private bool _isUpdatingProcessedProgress;
 
     private void InitializeProcessedTimer()
     {
@@ -24,8 +25,10 @@ public partial class MainWindow : Window
     private void ProcessedTimer_Tick(object? sender, EventArgs e)
     {
         if (!ProcessedMediaPlayer.NaturalDuration.HasTimeSpan || ProcessedMediaPlayer.Source == null) return;
+        _isUpdatingProcessedProgress = true;
         ProcessedProgressSlider.Value = ProcessedMediaPlayer.Position.TotalSeconds /
                                         ProcessedMediaPlayer.NaturalDuration.TimeSpan.TotalSeconds * 100;
+        _isUpdatingProcessedProgress = false;
         ProcessedCurrentTimeText.Text = ProcessedMediaPlayer.Position.ToString(@"mm\:ss");
     }
 
@@ -40,7 +43,7 @@ public partial class MainWindow : Window
 
         try
         {
-            ProcessedMediaPlayer.Source = new Uri(selectedFile);
+            ProcessedMediaPlayer.Source = new Uri(selectedFile, UriKind.Absolute);
             ProcessedPlayerStatus.Visibility = Visibility.Collapsed;
             ProcessedMediaPlayer.Play();
             _processedTimer.Start();
@@ -70,7 +73,7 @@ public partial class MainWindow : Window
 
     private void ProcessedProgressSlider_ValueChanged(object sender, RoutedPropertyChangedEventArgs<double> e)
     {
-        if (ProcessedMediaPlayer.Source == null || !ProcessedMediaPlayer.NaturalDuration.HasTimeSpan) return;
+        if (_isUpdatingProcessedProgress || ProcessedMediaPlayer.Source == null || !ProcessedMediaPlayer.NaturalDuration.HasTimeSpan) return;
         var newPosition = TimeSpan.FromSeconds(ProcessedProgressSlider.Value / 100 *
                                                ProcessedMediaPlayer.NaturalDuration.TimeSpan.TotalSeconds);
         ProcessedMediaPlayer.Position = newPosition;

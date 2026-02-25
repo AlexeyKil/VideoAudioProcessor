@@ -46,7 +46,7 @@ public partial class MainWindow : Window
         VolumeSlider.Value = 0.5;
     }
 
-    private void LoadFile_Click(object sender, RoutedEventArgs e)
+    private async void LoadFile_Click(object sender, RoutedEventArgs e)
     {
         if (string.IsNullOrEmpty(RootPath))
         {
@@ -78,15 +78,45 @@ public partial class MainWindow : Window
 
         try
         {
-            Directory.CreateDirectory(QueuePath);
-            var destinationPath = Path.Combine(QueuePath, Path.GetFileName(openFileDialog.FileName));
-            File.Copy(openFileDialog.FileName, destinationPath, true);
-            MessageBox.Show($"Файл сохранен: {destinationPath}", "Успешно", MessageBoxButton.OK, MessageBoxImage.Information);
+            string destinationPath = string.Empty;
+
+            await RunWithWaitDialogAsync("Загрузка", "Файл загружается...", async () =>
+            {
+                await Task.Run(() =>
+                {
+                    Directory.CreateDirectory(QueuePath);
+                    destinationPath = GetUniqueQueueFilePath(Path.GetFileName(openFileDialog.FileName));
+
+                    // Сохраняем файл в исходном виде без каких-либо изменений.
+                    File.Copy(openFileDialog.FileName, destinationPath, false);
+                });
+            });
+
+            RefreshFileList();
+            MessageBox.Show($"Файл сохранен: {destinationPath}", "Успешно", MessageBoxButton.OK,
+                MessageBoxImage.Information);
         }
         catch (Exception ex)
         {
-            MessageBox.Show($"Ошибка при загрузке файла: {ex.Message}", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Error);
+            MessageBox.Show($"Ошибка при загрузке файла: {ex.Message}", "Ошибка", MessageBoxButton.OK,
+                MessageBoxImage.Error);
         }
+    }
+
+    private string GetUniqueQueueFilePath(string originalFileName)
+    {
+        var baseName = Path.GetFileNameWithoutExtension(originalFileName);
+        var extension = Path.GetExtension(originalFileName);
+        var candidateName = originalFileName;
+        var version = 1;
+
+        while (File.Exists(Path.Combine(QueuePath, candidateName)))
+        {
+            candidateName = $"{baseName}({version}){extension}";
+            version++;
+        }
+
+        return Path.Combine(QueuePath, candidateName);
     }
 
     private void ShowQueue_Click(object sender, RoutedEventArgs e)
