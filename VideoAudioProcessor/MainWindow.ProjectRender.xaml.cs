@@ -66,8 +66,7 @@ public partial class MainWindow : Window
         var inputBuilder = new StringBuilder();
         var filterBuilder = new StringBuilder();
         var videoLabels = new List<string>();
-        var audioLabels = new List<string>();
-        var transition = Math.Max(0.1, project.TransitionSeconds);
+        var timelineAudioLabels = new List<string>();
         project.AudioItems ??= new List<ProjectAudioItem>();
         if (project.AudioItems.Count == 0 && !string.IsNullOrWhiteSpace(project.AudioPath))
         {
@@ -108,39 +107,37 @@ public partial class MainWindow : Window
                 filterBuilder.Append(
                     $"[{i}:a]atrim=0:{duration.ToString(CultureInfo.InvariantCulture)}," +
                     $"asetpts=PTS-STARTPTS,aresample=48000[{audioLabel}];");
-                audioLabels.Add(audioLabel);
+                timelineAudioLabels.Add(audioLabel);
+            }
+            else if (project.UseVideoAudio)
+            {
+                var silentLabel = $"asil{i}";
+                filterBuilder.Append(
+                    $"anullsrc=r=48000:cl=stereo,atrim=0:{duration.ToString(CultureInfo.InvariantCulture)}," +
+                    $"asetpts=PTS-STARTPTS[{silentLabel}];");
+                timelineAudioLabels.Add(silentLabel);
             }
         }
 
         var totalDuration = project.Items.Sum(item => item.DurationSeconds);
 
-        var currentVideo = videoLabels[0];
-        for (var i = 1; i < videoLabels.Count; i++)
-        {
-            var previousDuration = project.Items.Take(i).Sum(item => item.DurationSeconds);
-            var offset = Math.Max(0, previousDuration - transition);
-            var nextLabel = $"vxf{i}";
-            filterBuilder.Append(
-                $"[{currentVideo}][{videoLabels[i]}]xfade=transition=fade:duration=" +
-                $"{transition.ToString(CultureInfo.InvariantCulture)}:offset={offset.ToString(CultureInfo.InvariantCulture)}" +
-                $"[{nextLabel}];");
-            currentVideo = nextLabel;
-        }
+        var concatVideoInputs = string.Join(string.Empty, videoLabels.Select(label => $"[{label}]"));
+        filterBuilder.Append($"{concatVideoInputs}concat=n={videoLabels.Count}:v=1:a=0[vcat];");
+        var currentVideo = "vcat";
 
         string audioMap;
-        if (project.UseVideoAudio && audioLabels.Count > 0)
+        if (project.UseVideoAudio && timelineAudioLabels.Count > 0)
         {
-            var currentAudio = audioLabels[0];
-            for (var i = 1; i < audioLabels.Count; i++)
+            if (timelineAudioLabels.Count == 1)
             {
-                var nextLabel = $"axf{i}";
-                filterBuilder.Append(
-                    $"[{currentAudio}][{audioLabels[i]}]acrossfade=d=" +
-                    $"{transition.ToString(CultureInfo.InvariantCulture)}[{nextLabel}];");
-                currentAudio = nextLabel;
+                audioMap = $"-map \"[{timelineAudioLabels[0]}]\"";
             }
-
-            audioMap = $"-map \"[{currentAudio}]\"";
+            else
+            {
+                var concatAudioInputs = string.Join(string.Empty, timelineAudioLabels.Select(label => $"[{label}]"));
+                filterBuilder.Append($"{concatAudioInputs}concat=n={timelineAudioLabels.Count}:v=0:a=1[vaudio];");
+                audioMap = "-map \"[vaudio]\"";
+            }
         }
         else if (project.AudioItems.Count > 0)
         {
@@ -159,16 +156,12 @@ public partial class MainWindow : Window
                     : GetMediaDuration(item.Path);
                 item.DurationSeconds = Math.Max(0.5, duration);
 
-                var fadeDuration = Math.Min(transition, Math.Max(0.05, item.DurationSeconds / 2));
-                var fadeOutStart = Math.Max(0, item.DurationSeconds - fadeDuration);
                 var inputIndex = baseAudioIndex + i;
                 var audioLabel = $"aseq{i}";
 
                 filterBuilder.Append(
                     $"[{inputIndex}:a]atrim=0:{item.DurationSeconds.ToString(CultureInfo.InvariantCulture)},asetpts=PTS-STARTPTS," +
-                    $"afade=t=in:st=0:d={fadeDuration.ToString(CultureInfo.InvariantCulture)}," +
-                    $"afade=t=out:st={fadeOutStart.ToString(CultureInfo.InvariantCulture)}:d={fadeDuration.ToString(CultureInfo.InvariantCulture)}" +
-                    $"[{audioLabel}];");
+                    $"aresample=48000[{audioLabel}];");
                 sequenceLabels.Add(audioLabel);
             }
 

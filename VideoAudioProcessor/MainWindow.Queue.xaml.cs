@@ -1,4 +1,5 @@
 using System.IO;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Threading;
@@ -29,7 +30,7 @@ public partial class MainWindow : Window
         }
     }
     
-    private void DeleteFile_Click(object sender, RoutedEventArgs e)
+    private async void DeleteFile_Click(object sender, RoutedEventArgs e)
     {
         if (FilesListBox.SelectedItem == null) return;
     
@@ -44,8 +45,17 @@ public partial class MainWindow : Window
         {
             try
             {
-                File.Delete(selectedFile);
-                // Обновляем список файлов
+                await RunWithWaitDialogAsync("Удаление", "Файл удаляется...", async () =>
+                {
+                    await Task.Run(() =>
+                    {
+                        if (File.Exists(selectedFile))
+                        {
+                            File.Delete(selectedFile);
+                        }
+                    });
+                });
+
                 RefreshFileList();
             }
             catch (Exception ex)

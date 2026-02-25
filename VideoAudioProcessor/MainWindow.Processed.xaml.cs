@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Linq;
+using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Threading;
@@ -127,7 +128,7 @@ public partial class MainWindow : Window
     }
 
 
-    private void DeleteProcessedFile_Click(object sender, RoutedEventArgs e)
+    private async void DeleteProcessedFile_Click(object sender, RoutedEventArgs e)
     {
         if (ProcessedListBox.SelectedItem == null)
         {
@@ -145,10 +146,16 @@ public partial class MainWindow : Window
 
         try
         {
-            if (File.Exists(selectedFile))
+            await RunWithWaitDialogAsync("Удаление", "Файл удаляется...", async () =>
             {
-                File.Delete(selectedFile);
-            }
+                await Task.Run(() =>
+                {
+                    if (File.Exists(selectedFile))
+                    {
+                        File.Delete(selectedFile);
+                    }
+                });
+            });
 
             RefreshProcessedList();
             ProcessedMediaPlayer.Stop();
