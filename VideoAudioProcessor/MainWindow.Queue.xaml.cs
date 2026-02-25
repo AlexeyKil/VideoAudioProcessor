@@ -93,8 +93,15 @@ public partial class MainWindow : Window
     
         try
         {
+            _progressTimer.Stop();
+            MediaPlayer.Pause();
+
+            _previewTimer.Stop();
+            PreviewMediaPlayer.Stop();
             PreviewMediaPlayer.Source = new Uri(selectedFile, UriKind.Absolute);
-            PreviewMediaPlayer.Play();
+            PreviewSlider.Value = 0;
+            PreviewCurrentTime.Text = "00:00";
+            PreviewTotalTime.Text = "00:00";
         
             // Переключаемся на экран обработки
             HideAllScreens();
