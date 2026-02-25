@@ -15,6 +15,9 @@ namespace VideoAudioProcessor;
 public partial class MainWindow : Window
 {
     private const string ProjectsFolderName = "Projects";
+    private const int DefaultProjectFps = 30;
+    private const double DefaultTransitionSeconds = 1;
+    private const double DefaultMaxClipDurationSeconds = 0;
     private ProjectType _currentProjectType;
     private ProjectData? _currentProject;
     private readonly ObservableCollection<ProjectMediaItem> _timelineItems = new();
@@ -225,12 +228,13 @@ public partial class MainWindow : Window
             "avi" => 2,
             _ => 0
         };
+        project.Fps = DefaultProjectFps;
+        project.TransitionSeconds = DefaultTransitionSeconds;
+        project.MaxClipDurationSeconds = DefaultMaxClipDurationSeconds;
+
         ProjectWidthTextBox.Text = project.Width.ToString();
         ProjectHeightTextBox.Text = project.Height.ToString();
-        ProjectFpsTextBox.Text = project.Fps.ToString();
-        ProjectTransitionTextBox.Text = project.TransitionSeconds.ToString();
         SlideDurationTextBox.Text = project.SlideDurationSeconds.ToString();
-        MaxClipDurationTextBox.Text = project.MaxClipDurationSeconds.ToString();
 
         UseVideoAudioCheckBox.Visibility = Visibility.Visible;
         SlideDurationLabel.Visibility = Visibility.Collapsed;
@@ -301,7 +305,7 @@ public partial class MainWindow : Window
 
         var duration = kind == ProjectMediaKind.Image
             ? PromptDurationSeconds(3)
-            : GetTrimmedDuration(path, ParseDoubleOrDefault(MaxClipDurationTextBox.Text, 0));
+            : GetTrimmedDuration(path, _currentProject.MaxClipDurationSeconds);
 
         if (kind == ProjectMediaKind.Image && duration == null)
         {
@@ -768,10 +772,10 @@ public partial class MainWindow : Window
         _currentProject.OutputFormat = GetSelectedOutputFormat();
         _currentProject.Width = ParseIntOrDefault(ProjectWidthTextBox.Text, 1920);
         _currentProject.Height = ParseIntOrDefault(ProjectHeightTextBox.Text, 1080);
-        _currentProject.Fps = ParseIntOrDefault(ProjectFpsTextBox.Text, 30);
-        _currentProject.TransitionSeconds = ParseDoubleOrDefault(ProjectTransitionTextBox.Text, 1);
+        _currentProject.Fps = DefaultProjectFps;
+        _currentProject.TransitionSeconds = DefaultTransitionSeconds;
         _currentProject.SlideDurationSeconds = ParseDoubleOrDefault(SlideDurationTextBox.Text, 3);
-        _currentProject.MaxClipDurationSeconds = ParseDoubleOrDefault(MaxClipDurationTextBox.Text, 0);
+        _currentProject.MaxClipDurationSeconds = DefaultMaxClipDurationSeconds;
         _currentProject.UseVideoAudio = UseVideoAudioCheckBox.IsChecked == true;
         _currentProject.Items = _timelineItems.ToList();
         SyncProjectAudioState(_currentProject);
