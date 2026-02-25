@@ -108,7 +108,7 @@ public partial class MainWindow : Window
                 var audioLabel = $"a{i}";
                 filterBuilder.Append(
                     $"[{i}:a]atrim=0:{duration.ToString(CultureInfo.InvariantCulture)}," +
-                    $"asetpts=PTS-STARTPTS,aresample=48000[{audioLabel}];");
+                    $"asetpts=PTS-STARTPTS,aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo[{audioLabel}];");
                 timelineAudioLabels.Add(audioLabel);
             }
             else if (project.UseVideoAudio)
@@ -116,7 +116,7 @@ public partial class MainWindow : Window
                 var silentLabel = $"asil{i}";
                 filterBuilder.Append(
                     $"anullsrc=r=48000:cl=stereo,atrim=0:{duration.ToString(CultureInfo.InvariantCulture)}," +
-                    $"asetpts=PTS-STARTPTS[{silentLabel}];");
+                    $"asetpts=PTS-STARTPTS,aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo[{silentLabel}];");
                 timelineAudioLabels.Add(silentLabel);
             }
         }
@@ -163,7 +163,7 @@ public partial class MainWindow : Window
 
                 filterBuilder.Append(
                     $"[{inputIndex}:a]atrim=0:{item.DurationSeconds.ToString(CultureInfo.InvariantCulture)},asetpts=PTS-STARTPTS," +
-                    $"aresample=48000[{audioLabel}];");
+                    $"aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo[{audioLabel}];");
                 sequenceLabels.Add(audioLabel);
             }
 
@@ -183,7 +183,7 @@ public partial class MainWindow : Window
             var silentAudioIndex = project.Items.Count;
             inputBuilder.Append(
                 $" -f lavfi -t {Math.Max(0.5, totalDuration).ToString(CultureInfo.InvariantCulture)} -i anullsrc=channel_layout=stereo:sample_rate=48000");
-            filterBuilder.Append($"[{silentAudioIndex}:a]atrim=0:{Math.Max(0.5, totalDuration).ToString(CultureInfo.InvariantCulture)},asetpts=PTS-STARTPTS[silent];");
+            filterBuilder.Append($"[{silentAudioIndex}:a]atrim=0:{Math.Max(0.5, totalDuration).ToString(CultureInfo.InvariantCulture)},asetpts=PTS-STARTPTS,aformat=sample_fmts=fltp:sample_rates=48000:channel_layouts=stereo[silent];");
             audioMap = "-map \"[silent]\"";
         }
 
