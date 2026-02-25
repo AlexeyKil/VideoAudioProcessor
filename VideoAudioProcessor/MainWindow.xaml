@@ -399,9 +399,9 @@
                                 ValueChanged="PreviewSlider_ValueChanged"/>
 
                         <StackPanel Grid.Row="2" Orientation="Horizontal" HorizontalAlignment="Center">
-                            <TextBlock x:Name="PreviewCurrentTime" Text="00:00" Margin="5"/>
-                            <TextBlock Text="/" Margin="5"/>
-                            <TextBlock x:Name="PreviewTotalTime" Text="00:00" Margin="5"/>
+                            <TextBlock x:Name="PreviewCurrentTime" Text="00:00" Foreground="White" Margin="5"/>
+                            <TextBlock Text="/" Foreground="White" Margin="5"/>
+                            <TextBlock x:Name="PreviewTotalTime" Text="00:00" Foreground="White" Margin="5"/>
                         </StackPanel>
 
                         <StackPanel Grid.Row="3" Orientation="Horizontal" HorizontalAlignment="Center" Margin="10">
