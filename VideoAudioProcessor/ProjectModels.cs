@@ -40,6 +40,7 @@ public sealed class ProjectData
     public ProjectType Type { get; set; }
     public List<ProjectMediaItem> Items { get; set; } = new();
     public string? AudioPath { get; set; }
+    public List<ProjectAudioItem> AudioItems { get; set; } = new();
     public bool UseVideoAudio { get; set; } = true;
     public double AudioDurationSeconds { get; set; }
     public string OutputFormat { get; set; } = "mp4";
@@ -50,4 +51,21 @@ public sealed class ProjectData
     public double SlideDurationSeconds { get; set; } = 3;
     public double MaxClipDurationSeconds { get; set; }
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;
+}
+
+public sealed class ProjectAudioItem
+{
+    public string Path { get; set; } = string.Empty;
+    public double DurationSeconds { get; set; }
+
+    public string DisplayName
+    {
+        get
+        {
+            var fileName = System.IO.Path.GetFileName(Path);
+            return DurationSeconds > 0
+                ? $"[Аудио] {fileName} ({DurationSeconds:0.##} сек.)"
+                : $"[Аудио] {fileName}";
+        }
+    }
 }

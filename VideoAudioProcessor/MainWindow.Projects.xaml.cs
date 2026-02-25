@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
@@ -17,6 +18,7 @@ public partial class MainWindow : Window
     private ProjectType _currentProjectType;
     private ProjectData? _currentProject;
     private readonly ObservableCollection<ProjectMediaItem> _timelineItems = new();
+    private readonly ObservableCollection<ProjectAudioItem> _audioTimelineItems = new();
     private readonly ObservableCollection<TimelineListEntry> _timelineListItems = new();
 
     private string ProjectsRootPath => Path.Combine(RootPath, "TrackManager", ProjectsFolderName);
@@ -147,20 +149,75 @@ public partial class MainWindow : Window
         RefreshProjectList();
     }
 
+    private void EnsureAudioItemsMigrated(ProjectData project)
+    {
+        project.AudioItems ??= new List<ProjectAudioItem>();
+        if (project.AudioItems.Count == 0 && !string.IsNullOrWhiteSpace(project.AudioPath))
+        {
+            project.AudioItems.Add(new ProjectAudioItem
+            {
+                Path = project.AudioPath,
+                DurationSeconds = project.AudioDurationSeconds
+            });
+        }
+    }
+
+    private void SyncProjectAudioState(ProjectData project)
+    {
+        project.AudioItems = _audioTimelineItems.ToList();
+        if (project.AudioItems.Count > 0)
+        {
+            project.AudioPath = project.AudioItems[0].Path;
+            project.AudioDurationSeconds = project.AudioItems[0].DurationSeconds;
+        }
+        else
+        {
+            project.AudioPath = null;
+            project.AudioDurationSeconds = 0;
+        }
+    }
+
+    private void UpdateSelectedAudioText(ProjectData project)
+    {
+        if (project.UseVideoAudio)
+        {
+            SelectedAudioText.Text = "Аудио берется из видео дорожки";
+            return;
+        }
+
+        if (_audioTimelineItems.Count == 0)
+        {
+            SelectedAudioText.Text = "Аудио не выбрано";
+            return;
+        }
+
+        var totalDuration = _audioTimelineItems.Sum(item => item.DurationSeconds > 0
+            ? item.DurationSeconds
+            : GetMediaDuration(item.Path));
+        SelectedAudioText.Text = $"Выбрано аудио: {_audioTimelineItems.Count} (сумма: {totalDuration:0.##} сек.)";
+    }
+
     private void OpenProjectEditor(ProjectData project)
     {
         _currentProject = project;
+        EnsureAudioItemsMigrated(project);
+
         _timelineItems.Clear();
         foreach (var item in project.Items)
         {
             _timelineItems.Add(item);
         }
 
+        _audioTimelineItems.Clear();
+        foreach (var item in project.AudioItems)
+        {
+            _audioTimelineItems.Add(item);
+        }
+
         TimelineItemsListBox.ItemsSource = _timelineListItems;
         ProjectEditorTitle.Text = "Форма редактирования медиаколлажа";
         ProjectNameTextBox.Text = project.Name;
-        SelectedAudioText.Text = string.IsNullOrWhiteSpace(project.AudioPath) ? "Аудио не выбрано" :
-            Path.GetFileName(project.AudioPath);
+        UpdateSelectedAudioText(project);
         UseVideoAudioCheckBox.IsChecked = project.UseVideoAudio;
         ProjectOutputFormatComboBox.SelectedIndex = project.OutputFormat switch
         {
@@ -282,16 +339,19 @@ public partial class MainWindow : Window
                 : 3);
             _currentProject.Items = _timelineItems.ToList();
         }
-        else if (selectedEntry.IsAudio)
+        else if (selectedEntry.AudioItem != null)
         {
-            _currentProject.AudioDurationSeconds = PromptDurationSeconds(_currentProject.AudioDurationSeconds > 0
-                ? _currentProject.AudioDurationSeconds
-                : _timelineItems.Sum(item => Math.Max(0.5, item.DurationSeconds)));
+            var defaultDuration = selectedEntry.AudioItem.DurationSeconds > 0
+                ? selectedEntry.AudioItem.DurationSeconds
+                : GetMediaDuration(selectedEntry.AudioItem.Path);
+            selectedEntry.AudioItem.DurationSeconds = PromptDurationSeconds(defaultDuration);
+            SyncProjectAudioState(_currentProject);
         }
 
         SaveProjectToFile(_currentProject);
         RefreshTimelineList();
         RefreshTimelinePreview();
+        UpdateSelectedAudioText(_currentProject);
     }
 
     private void RemoveTimelineItem_Click(object sender, RoutedEventArgs e)
@@ -307,19 +367,23 @@ public partial class MainWindow : Window
             {
                 _timelineItems.Remove(selected.MediaItem);
             }
-            else if (selected.IsAudio)
+            else if (selected.AudioItem != null)
             {
-                _currentProject.AudioPath = null;
-                _currentProject.AudioDurationSeconds = 0;
-                _currentProject.UseVideoAudio = false;
-                UseVideoAudioCheckBox.IsChecked = false;
-                SelectedAudioText.Text = "Аудио не выбрано";
+                _audioTimelineItems.Remove(selected.AudioItem);
+                SyncProjectAudioState(_currentProject);
+                if (_audioTimelineItems.Count == 0)
+                {
+                    _currentProject.UseVideoAudio = false;
+                    UseVideoAudioCheckBox.IsChecked = false;
+                }
             }
 
             _currentProject.Items = _timelineItems.ToList();
+            SyncProjectAudioState(_currentProject);
             SaveProjectToFile(_currentProject);
             RefreshTimelineList();
             RefreshTimelinePreview();
+            UpdateSelectedAudioText(_currentProject);
         }
     }
 
@@ -331,13 +395,18 @@ public partial class MainWindow : Window
             return;
         }
 
-        _currentProject.AudioPath = selected;
-        _currentProject.AudioDurationSeconds = 0;
-        SelectedAudioText.Text = Path.GetFileName(selected);
+        _audioTimelineItems.Add(new ProjectAudioItem
+        {
+            Path = selected,
+            DurationSeconds = 0
+        });
+        _currentProject.UseVideoAudio = false;
         UseVideoAudioCheckBox.IsChecked = false;
+        SyncProjectAudioState(_currentProject);
         SaveProjectToFile(_currentProject);
         RefreshTimelineList();
         RefreshTimelinePreview();
+        UpdateSelectedAudioText(_currentProject);
     }
 
     private void SelectAudioFromComputer_Click(object sender, RoutedEventArgs e)
@@ -353,13 +422,18 @@ public partial class MainWindow : Window
             return;
         }
 
-        _currentProject.AudioPath = openFileDialog.FileName;
-        _currentProject.AudioDurationSeconds = 0;
-        SelectedAudioText.Text = Path.GetFileName(openFileDialog.FileName);
+        _audioTimelineItems.Add(new ProjectAudioItem
+        {
+            Path = openFileDialog.FileName,
+            DurationSeconds = 0
+        });
+        _currentProject.UseVideoAudio = false;
         UseVideoAudioCheckBox.IsChecked = false;
+        SyncProjectAudioState(_currentProject);
         SaveProjectToFile(_currentProject);
         RefreshTimelineList();
         RefreshTimelinePreview();
+        UpdateSelectedAudioText(_currentProject);
     }
 
     private void ClearAudio_Click(object sender, RoutedEventArgs e)
@@ -369,12 +443,14 @@ public partial class MainWindow : Window
             return;
         }
 
-        _currentProject.AudioPath = null;
-        _currentProject.AudioDurationSeconds = 0;
-        SelectedAudioText.Text = "Аудио не выбрано";
+        _audioTimelineItems.Clear();
+        SyncProjectAudioState(_currentProject);
+        _currentProject.UseVideoAudio = false;
+        UseVideoAudioCheckBox.IsChecked = false;
         SaveProjectToFile(_currentProject);
         RefreshTimelineList();
         RefreshTimelinePreview();
+        UpdateSelectedAudioText(_currentProject);
     }
 
     private void RefreshTimelineList()
@@ -385,9 +461,15 @@ public partial class MainWindow : Window
             _timelineListItems.Add(new TimelineListEntry(item));
         }
 
-        if (_currentProject?.UseVideoAudio == true || !string.IsNullOrWhiteSpace(_currentProject?.AudioPath))
+        if (_currentProject?.UseVideoAudio == true)
         {
-            _timelineListItems.Add(TimelineListEntry.CreateAudio(_currentProject));
+            _timelineListItems.Add(TimelineListEntry.CreateAudioFromVideo());
+            return;
+        }
+
+        foreach (var audioItem in _audioTimelineItems)
+        {
+            _timelineListItems.Add(TimelineListEntry.CreateAudio(audioItem));
         }
     }
 
@@ -423,27 +505,70 @@ public partial class MainWindow : Window
             VideoTimelinePanel.Children.Add(block);
         }
 
-        var audioLabel = string.IsNullOrWhiteSpace(_currentProject?.AudioPath)
-            ? (_currentProject?.UseVideoAudio == true ? "Аудио берется из видео дорожки" : "Без аудио")
-            : Path.GetFileName(_currentProject.AudioPath);
-
-        var audioBlock = new Border
+        if (_currentProject?.UseVideoAudio == true)
         {
-            Width = Math.Max(120, totalDuration * 24),
-            Height = 28,
-            Margin = new Thickness(3, 0, 3, 0),
-            CornerRadius = new CornerRadius(3),
-            Background = (System.Windows.Media.Brush)new System.Windows.Media.BrushConverter().ConvertFromString("#FF2E7D32")!,
-            Child = new TextBlock
+            var videoAudioBlock = new Border
             {
-                Text = audioLabel,
-                Foreground = System.Windows.Media.Brushes.White,
-                Margin = new Thickness(6, 4, 6, 4),
-                TextTrimming = TextTrimming.CharacterEllipsis
-            }
-        };
+                Width = Math.Max(120, totalDuration * 24),
+                Height = 28,
+                Margin = new Thickness(3, 0, 3, 0),
+                CornerRadius = new CornerRadius(3),
+                Background = (System.Windows.Media.Brush)new System.Windows.Media.BrushConverter().ConvertFromString("#FF2E7D32")!,
+                Child = new TextBlock
+                {
+                    Text = "Аудио из видео дорожки",
+                    Foreground = System.Windows.Media.Brushes.White,
+                    Margin = new Thickness(6, 4, 6, 4),
+                    TextTrimming = TextTrimming.CharacterEllipsis
+                }
+            };
+            AudioTimelinePanel.Children.Add(videoAudioBlock);
+            return;
+        }
 
-        AudioTimelinePanel.Children.Add(audioBlock);
+        if (_audioTimelineItems.Count == 0)
+        {
+            var emptyAudioBlock = new Border
+            {
+                Width = Math.Max(120, totalDuration * 24),
+                Height = 28,
+                Margin = new Thickness(3, 0, 3, 0),
+                CornerRadius = new CornerRadius(3),
+                Background = (System.Windows.Media.Brush)new System.Windows.Media.BrushConverter().ConvertFromString("#FF424242")!,
+                Child = new TextBlock
+                {
+                    Text = "Без аудио",
+                    Foreground = System.Windows.Media.Brushes.White,
+                    Margin = new Thickness(6, 4, 6, 4),
+                    TextTrimming = TextTrimming.CharacterEllipsis
+                }
+            };
+            AudioTimelinePanel.Children.Add(emptyAudioBlock);
+            return;
+        }
+
+        foreach (var item in _audioTimelineItems)
+        {
+            var audioDuration = item.DurationSeconds > 0 ? item.DurationSeconds : GetMediaDuration(item.Path);
+            var audioBlock = new Border
+            {
+                Width = Math.Max(120, audioDuration * 24),
+                Height = 28,
+                Margin = new Thickness(3, 0, 3, 0),
+                CornerRadius = new CornerRadius(3),
+                Background = (System.Windows.Media.Brush)new System.Windows.Media.BrushConverter().ConvertFromString("#FF2E7D32")!,
+                Child = new TextBlock
+                {
+                    Text = $"{Path.GetFileName(item.Path)} ({audioDuration:0.#}с)",
+                    Foreground = System.Windows.Media.Brushes.White,
+                    Margin = new Thickness(6, 4, 6, 4),
+                    TextTrimming = TextTrimming.CharacterEllipsis
+                },
+                ToolTip = item.DisplayName
+            };
+
+            AudioTimelinePanel.Children.Add(audioBlock);
+        }
     }
 
     private void UseVideoAudioCheckBox_Changed(object sender, RoutedEventArgs e)
@@ -454,9 +579,11 @@ public partial class MainWindow : Window
         }
 
         _currentProject.UseVideoAudio = UseVideoAudioCheckBox.IsChecked == true;
+        SyncProjectAudioState(_currentProject);
         SaveProjectToFile(_currentProject);
         RefreshTimelineList();
         RefreshTimelinePreview();
+        UpdateSelectedAudioText(_currentProject);
     }
 
     private static readonly string[] VideoExtensions = [".mp4", ".avi", ".mkv", ".mov", ".wmv"];
@@ -624,6 +751,7 @@ public partial class MainWindow : Window
         _currentProject.MaxClipDurationSeconds = ParseDoubleOrDefault(MaxClipDurationTextBox.Text, 0);
         _currentProject.UseVideoAudio = UseVideoAudioCheckBox.IsChecked == true;
         _currentProject.Items = _timelineItems.ToList();
+        SyncProjectAudioState(_currentProject);
 
         SaveProjectToFile(_currentProject);
         SaveProjectButton.IsEnabled = false;
@@ -649,40 +777,28 @@ public partial class MainWindow : Window
 
     private sealed class TimelineListEntry
     {
-        private TimelineListEntry(ProjectMediaItem? mediaItem, bool isAudio, string? displayName = null)
+        private TimelineListEntry(ProjectMediaItem? mediaItem, ProjectAudioItem? audioItem, bool isAudioFromVideo, string? displayName = null)
         {
             MediaItem = mediaItem;
-            IsAudio = isAudio;
+            AudioItem = audioItem;
+            IsAudioFromVideo = isAudioFromVideo;
             _displayName = displayName;
         }
 
         private readonly string? _displayName;
         public ProjectMediaItem? MediaItem { get; }
-        public bool IsAudio { get; }
+        public ProjectAudioItem? AudioItem { get; }
+        public bool IsAudioFromVideo { get; }
 
-        public string DisplayName => MediaItem?.DisplayName ?? _displayName ?? string.Empty;
+        public string DisplayName => MediaItem?.DisplayName ?? AudioItem?.DisplayName ?? _displayName ?? string.Empty;
 
-        public static TimelineListEntry CreateAudio(ProjectData? project)
-        {
-            if (project == null)
-            {
-                return new TimelineListEntry(null, true, "[Аудио] Без аудио");
-            }
+        public static TimelineListEntry CreateAudio(ProjectAudioItem item) =>
+            new(null, item, false);
 
-            var audioName = project.UseVideoAudio
-                ? "Аудио берется из видео дорожки"
-                : (!string.IsNullOrWhiteSpace(project.AudioPath)
-                    ? System.IO.Path.GetFileName(project.AudioPath)
-                    : "Без аудио");
+        public static TimelineListEntry CreateAudioFromVideo() =>
+            new(null, null, true, "[Аудио] Аудио берется из видео дорожки");
 
-            var duration = project.AudioDurationSeconds > 0
-                ? $" ({project.AudioDurationSeconds:0.##} сек.)"
-                : string.Empty;
-
-            return new TimelineListEntry(null, true, $"[Аудио] {audioName}{duration}");
-        }
-
-        public TimelineListEntry(ProjectMediaItem item) : this(item, false)
+        public TimelineListEntry(ProjectMediaItem item) : this(item, null, false)
         {
         }
     }
@@ -721,9 +837,10 @@ public partial class MainWindow : Window
             return false;
         }
 
-        if (!string.IsNullOrWhiteSpace(project.AudioPath) && !File.Exists(project.AudioPath))
+        EnsureAudioItemsMigrated(project);
+        if (project.AudioItems.Any(item => !File.Exists(item.Path)))
         {
-            MessageBox.Show("Выбранный аудиофайл не найден.");
+            MessageBox.Show("Один или несколько аудиофайлов не найдены.");
             return false;
         }
 
