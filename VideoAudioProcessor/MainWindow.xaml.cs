@@ -1,7 +1,9 @@
-﻿using System.IO;
+﻿using System.Configuration;
+using System.IO;
+using System.Threading.Tasks;
 using System.Windows;
+using System.Windows.Controls;
 using Microsoft.Win32;
-using System.Configuration;
 using Microsoft.WindowsAPICodePack.Dialogs;
 
 namespace VideoAudioProcessor;
@@ -13,7 +15,7 @@ public partial class MainWindow : Window
 {
     private static string QueuePath => Path.Combine(RootPath, "TrackManager", "Queue");
     private static string ProcessedPath => Path.Combine(RootPath, "TrackManager", "Processed");
-    
+
     private static string RootPath
     {
         get => ConfigurationManager.AppSettings["RootPath"] ?? string.Empty;
@@ -29,11 +31,12 @@ public partial class MainWindow : Window
             {
                 settings["RootPath"].Value = value;
             }
+
             config.Save(ConfigurationSaveMode.Modified);
             ConfigurationManager.RefreshSection("appSettings");
         }
     }
-    
+
     public MainWindow()
     {
         InitializeComponent();
@@ -58,6 +61,7 @@ public partial class MainWindow : Window
             {
                 RootPath = dialog.FileName;
             }
+
             return;
         }
 
@@ -67,7 +71,11 @@ public partial class MainWindow : Window
             Multiselect = false
         };
 
-        if (openFileDialog.ShowDialog() != true) return;
+        if (openFileDialog.ShowDialog() != true)
+        {
+            return;
+        }
+
         try
         {
             Directory.CreateDirectory(QueuePath);
@@ -111,6 +119,7 @@ public partial class MainWindow : Window
             MessageBox.Show("Пожалуйста, сначала установите корневую папку", "Ошибка", MessageBoxButton.OK, MessageBoxImage.Warning);
             return;
         }
+
         if (!Directory.Exists(ProcessedPath))
         {
             MessageBox.Show("Папка обработанных файлов не существует", "Информация", MessageBoxButton.OK,
@@ -131,5 +140,47 @@ public partial class MainWindow : Window
         ProcessScreen.Visibility = Visibility.Collapsed;
         ProjectListScreen.Visibility = Visibility.Collapsed;
         ProjectEditorScreen.Visibility = Visibility.Collapsed;
+    }
+
+    private async Task RunWithWaitDialogAsync(string title, string message, Func<Task> action)
+    {
+        var waitingWindow = new Window
+        {
+            Title = title,
+            Width = 320,
+            Height = 140,
+            ResizeMode = ResizeMode.NoResize,
+            WindowStartupLocation = WindowStartupLocation.CenterOwner,
+            WindowStyle = WindowStyle.ToolWindow,
+            Owner = this,
+            Content = new Grid
+            {
+                Margin = new Thickness(16),
+                Children =
+                {
+                    new TextBlock
+                    {
+                        Text = message,
+                        Foreground = System.Windows.Media.Brushes.White,
+                        TextAlignment = TextAlignment.Center,
+                        VerticalAlignment = VerticalAlignment.Center,
+                        TextWrapping = TextWrapping.Wrap
+                    }
+                }
+            },
+            Background = (System.Windows.Media.Brush)new System.Windows.Media.BrushConverter().ConvertFromString("#FF1E1E1E")!
+        };
+
+        waitingWindow.Show();
+        await Task.Yield();
+
+        try
+        {
+            await action();
+        }
+        finally
+        {
+            waitingWindow.Close();
+        }
     }
 }

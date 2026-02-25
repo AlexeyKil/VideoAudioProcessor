@@ -179,7 +179,7 @@ public partial class MainWindow : Window
 
     private void UpdateSelectedAudioText(ProjectData project)
     {
-        if (project.UseVideoAudio)
+        if (project.UseVideoAudio && _timelineItems.Any(item => item.Kind == ProjectMediaKind.Video))
         {
             SelectedAudioText.Text = "Аудио берется из видео дорожки";
             return;
@@ -303,10 +303,15 @@ public partial class MainWindow : Window
             ? PromptDurationSeconds(3)
             : GetTrimmedDuration(path, ParseDoubleOrDefault(MaxClipDurationTextBox.Text, 0));
 
+        if (kind == ProjectMediaKind.Image && duration == null)
+        {
+            return;
+        }
+
         var item = new ProjectMediaItem
         {
             Path = path,
-            DurationSeconds = duration,
+            DurationSeconds = duration ?? 0,
             Kind = kind
         };
 
@@ -317,10 +322,16 @@ public partial class MainWindow : Window
         RefreshTimelinePreview();
     }
 
-    private static double PromptDurationSeconds(double defaultValue)
+    private static double? PromptDurationSeconds(double defaultValue)
     {
         var input = Interaction.InputBox("Укажите длительность отображения в секундах", "Длительность",
             defaultValue.ToString("0.##"));
+
+        if (string.IsNullOrWhiteSpace(input))
+        {
+            return null;
+        }
+
         var duration = ParseDoubleOrDefault(input, defaultValue);
         return Math.Max(0.5, duration);
     }
@@ -334,9 +345,15 @@ public partial class MainWindow : Window
 
         if (selectedEntry.MediaItem != null)
         {
-            selectedEntry.MediaItem.DurationSeconds = PromptDurationSeconds(selectedEntry.MediaItem.DurationSeconds > 0
+            var updatedDuration = PromptDurationSeconds(selectedEntry.MediaItem.DurationSeconds > 0
                 ? selectedEntry.MediaItem.DurationSeconds
                 : 3);
+            if (updatedDuration == null)
+            {
+                return;
+            }
+
+            selectedEntry.MediaItem.DurationSeconds = updatedDuration.Value;
             _currentProject.Items = _timelineItems.ToList();
         }
         else if (selectedEntry.AudioItem != null)
@@ -344,7 +361,13 @@ public partial class MainWindow : Window
             var defaultDuration = selectedEntry.AudioItem.DurationSeconds > 0
                 ? selectedEntry.AudioItem.DurationSeconds
                 : GetMediaDuration(selectedEntry.AudioItem.Path);
-            selectedEntry.AudioItem.DurationSeconds = PromptDurationSeconds(defaultDuration);
+            var updatedDuration = PromptDurationSeconds(defaultDuration);
+            if (updatedDuration == null)
+            {
+                return;
+            }
+
+            selectedEntry.AudioItem.DurationSeconds = updatedDuration.Value;
             SyncProjectAudioState(_currentProject);
         }
 
@@ -461,7 +484,7 @@ public partial class MainWindow : Window
             _timelineListItems.Add(new TimelineListEntry(item));
         }
 
-        if (_currentProject?.UseVideoAudio == true)
+        if (_currentProject?.UseVideoAudio == true && _timelineItems.Any(item => item.Kind == ProjectMediaKind.Video))
         {
             _timelineListItems.Add(TimelineListEntry.CreateAudioFromVideo());
             return;
@@ -505,7 +528,7 @@ public partial class MainWindow : Window
             VideoTimelinePanel.Children.Add(block);
         }
 
-        if (_currentProject?.UseVideoAudio == true)
+        if (_currentProject?.UseVideoAudio == true && _timelineItems.Any(item => item.Kind == ProjectMediaKind.Video))
         {
             var videoAudioBlock = new Border
             {
