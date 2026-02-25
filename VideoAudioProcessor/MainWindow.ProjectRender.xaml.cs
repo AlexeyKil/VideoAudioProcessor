@@ -100,7 +100,7 @@ public partial class MainWindow : Window
             filterBuilder.Append(
                 $"[{i}:v]trim=0:{duration.ToString(CultureInfo.InvariantCulture)},setpts=PTS-STARTPTS," +
                 $"scale={outputWidth}:{outputHeight}:force_original_aspect_ratio=increase," +
-                $"crop={outputWidth}:{outputHeight},fps={project.Fps},format=yuv420p[{videoLabel}];");
+                $"crop={outputWidth}:{outputHeight},fps={project.Fps},format=yuv420p,setsar=1[{videoLabel}];");
             videoLabels.Add(videoLabel);
 
             if (project.UseVideoAudio && item.Kind == ProjectMediaKind.Video && HasAudioStream(item.Path))
