@@ -68,6 +68,15 @@ public partial class MainWindow : Window
         var videoLabels = new List<string>();
         var audioLabels = new List<string>();
         var transition = Math.Max(0.1, project.TransitionSeconds);
+        project.AudioItems ??= new List<ProjectAudioItem>();
+        if (project.AudioItems.Count == 0 && !string.IsNullOrWhiteSpace(project.AudioPath))
+        {
+            project.AudioItems.Add(new ProjectAudioItem
+            {
+                Path = project.AudioPath,
+                DurationSeconds = project.AudioDurationSeconds
+            });
+        }
 
         for (var i = 0; i < project.Items.Count; i++)
         {
@@ -133,15 +142,46 @@ public partial class MainWindow : Window
 
             audioMap = $"-map \"[{currentAudio}]\"";
         }
-        else if (!string.IsNullOrWhiteSpace(project.AudioPath))
+        else if (project.AudioItems.Count > 0)
         {
-            inputBuilder.Append($" -i \"{project.AudioPath}\"");
-            var audioIndex = project.Items.Count;
-            var audioDurationPart = project.AudioDurationSeconds > 0
-                ? $",atrim=0:{project.AudioDurationSeconds.ToString(CultureInfo.InvariantCulture)}"
-                : string.Empty;
-            filterBuilder.Append($"[{audioIndex}:a]aresample=48000{audioDurationPart},afade=t=in:st=0:d=1[audio];");
-            audioMap = "-map \"[audio]\"";
+            var baseAudioIndex = project.Items.Count;
+            for (var i = 0; i < project.AudioItems.Count; i++)
+            {
+                inputBuilder.Append($" -i \"{project.AudioItems[i].Path}\"");
+            }
+
+            var sequenceLabels = new List<string>();
+            for (var i = 0; i < project.AudioItems.Count; i++)
+            {
+                var item = project.AudioItems[i];
+                var duration = item.DurationSeconds > 0
+                    ? item.DurationSeconds
+                    : GetMediaDuration(item.Path);
+                item.DurationSeconds = Math.Max(0.5, duration);
+
+                var fadeDuration = Math.Min(transition, Math.Max(0.05, item.DurationSeconds / 2));
+                var fadeOutStart = Math.Max(0, item.DurationSeconds - fadeDuration);
+                var inputIndex = baseAudioIndex + i;
+                var audioLabel = $"aseq{i}";
+
+                filterBuilder.Append(
+                    $"[{inputIndex}:a]atrim=0:{item.DurationSeconds.ToString(CultureInfo.InvariantCulture)},asetpts=PTS-STARTPTS," +
+                    $"afade=t=in:st=0:d={fadeDuration.ToString(CultureInfo.InvariantCulture)}," +
+                    $"afade=t=out:st={fadeOutStart.ToString(CultureInfo.InvariantCulture)}:d={fadeDuration.ToString(CultureInfo.InvariantCulture)}" +
+                    $"[{audioLabel}];");
+                sequenceLabels.Add(audioLabel);
+            }
+
+            if (sequenceLabels.Count == 1)
+            {
+                audioMap = $"-map \"[{sequenceLabels[0]}]\"";
+            }
+            else
+            {
+                var concatInputs = string.Join(string.Empty, sequenceLabels.Select(label => $"[{label}]"));
+                filterBuilder.Append($"{concatInputs}concat=n={sequenceLabels.Count}:v=0:a=1[audio];");
+                audioMap = "-map \"[audio]\"";
+            }
         }
         else
         {
@@ -157,7 +197,7 @@ public partial class MainWindow : Window
 
         var filterComplex = filterBuilder.ToString().TrimEnd(';');
         var arguments = $"-y {inputBuilder} -filter_complex \"{filterComplex}\" -map \"[{finalizedVideoLabel}]\" {audioMap}" +
-                        $" -shortest -c:v libx264 -pix_fmt yuv420p -profile:v high -level 4.0 -preset medium -crf 20 -c:a aac -b:a 192k -movflags +faststart \"{outputPath}\"";
+                        $" -shortest -c:v libx264 -pix_fmt yuv420p -profile:v high -level 4.0 -preset medium -crf 20 -c:a aac -b:a 320k -movflags +faststart \"{outputPath}\"";
 
         return (arguments, tempFiles);
     }
